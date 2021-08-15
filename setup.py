@@ -4,14 +4,11 @@ from setuptools import find_packages, setup
 
 if __name__ == "__main__":
     MODULE_NAME = "simplebot_feeds"
-    DESC = "A plugin for SimpleBot, a Delta Chat(http://delta.chat/) bot"
+    DESC = "Subscribe to RSS/Atoms feeds in Delta Chat (SimpleBot plugin)"
+    KEYWORDS = "simplebot plugin deltachat feeds rss atom"
 
     with open("README.rst") as fh:
         long_description = fh.read()
-    with open("CHANGELOG.rst") as fh:
-        long_description += fh.read()
-    with open("LICENSE") as fh:
-        long_description += fh.read()
 
     setup(
         name=MODULE_NAME,
@@ -25,7 +22,10 @@ if __name__ == "__main__":
         description=DESC,
         long_description=long_description,
         long_description_content_type="text/x-rst",
-        keywords="simplebot plugin deltachat",
+        author="The SimpleBot Contributors",
+        author_email="adbenitez@nauta.cu",
+        url=f"https://github.com/simplebot-org/{MODULE_NAME}",
+        keywords=KEYWORDS,
         license="MPL",
         classifiers=[
             "Development Status :: 3 - Alpha",
