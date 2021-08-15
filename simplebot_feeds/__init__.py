@@ -40,6 +40,13 @@ def deltabot_init(bot: DeltaBot) -> None:
 
     _getdefault(bot, "delay", 60 * 5)
     _getdefault(bot, "max_feed_count", -1)
+    prefix = _getdefault(bot, "cmd_prefix", "")
+
+    desc = f"Subscribe current chat to the given feed.\n\nExample:\n/{prefix}sub https://delta.chat/feed.xml"
+    bot.commands.register(func=sub_cmd, name=f"/{prefix}sub", help=desc)
+    desc = f"Unsubscribe current chat from the given feed.\n\nExample:\n/{prefix}unsub https://delta.chat/feed.xml"
+    bot.commands.register(func=unsub_cmd, name=f"/{prefix}unsub", help=desc)
+    bot.commands.register(func=list_cmd, name=f"/{prefix}list")
 
 
 @simplebot.hookimpl
@@ -59,9 +66,7 @@ def deltabot_member_removed(bot: DeltaBot, chat: Chat, contact: Contact) -> None
                     db.remove_feed(feed["url"])
 
 
-@simplebot.command
-def feed_sub(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> None:
-    """Subscribe current chat to the given feed."""
+def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> None:
     url = db.normalize_url(payload)
     feed = db.get_feed(url)
 
@@ -114,9 +119,7 @@ def feed_sub(bot: DeltaBot, payload: str, message: Message, replies: Replies) ->
         replies.add(text=text, chat=chat)
 
 
-@simplebot.command
-def feed_unsub(payload: str, message: Message, replies: Replies) -> None:
-    """Unsubscribe current chat from the given feed."""
+def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
     url = payload
     feed = db.get_feed(url)
     if not feed:
@@ -133,8 +136,7 @@ def feed_unsub(payload: str, message: Message, replies: Replies) -> None:
     replies.add(text="Chat unsubscribed from: {}".format(feed["url"]))
 
 
-@simplebot.command
-def feed_list(message: Message, replies: Replies) -> None:
+def list_cmd(message: Message, replies: Replies) -> None:
     """List feed subscriptions for the current chat."""
     feeds = db.get_feeds(message.chat.id)
     text = "\n\n".join(f["url"] for f in feeds)
