@@ -1,4 +1,5 @@
 import os
+import socket
 import sqlite3
 from threading import Thread
 from time import sleep
@@ -54,6 +55,7 @@ def feed_sub(bot: DeltaBot, payload: str, message: Message, replies: Replies) ->
     url = db.normalize_url(payload)
     feed = db.get_feed(url)
 
+    socket.setdefaulttimeout(20)
     if feed:
         process = ResultProcess(target=feedparser.parse, args=(feed["url"],))
         process.start()
@@ -153,6 +155,7 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
         return
 
     bot.logger.debug("Checking feed: %s", f["url"])
+    socket.setdefaulttimeout(20)
     process = ResultProcess(
         target=feedparser.parse,
         args=(f["url"],),
