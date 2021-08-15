@@ -1,8 +1,8 @@
 import functools
 import os
 import sqlite3
+import time
 from threading import Thread
-from time import sleep
 from typing import Optional
 
 import feedparser
@@ -144,12 +144,15 @@ def feed_list(message: Message, replies: Replies) -> None:
 def _check_feeds(bot: DeltaBot) -> None:
     while True:
         bot.logger.debug("Checking feeds")
+        now = time.time()
         for f in db.get_feeds():
             try:
                 _check_feed(bot, f)
             except Exception as err:
                 bot.logger.exception(err)
-        sleep(int(_getdefault(bot, "delay")))
+        delay = int(_getdefault(bot, "delay")) - time.time() + now
+        if delay > 0:
+            time.sleep(delay)
 
 
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
