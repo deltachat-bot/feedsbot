@@ -12,11 +12,16 @@ import simplebot
 from deltachat import Chat, Contact, Message
 from feedparser.datetimes import _parse_date
 from feedparser.exceptions import CharacterEncodingOverride
+from pkg_resources import DistributionNotFound, get_distribution
 from simplebot.bot import DeltaBot, Replies
 
 from .db import DBManager
 
-__version__ = "1.0.0"
+try:
+    __version__ = get_distribution(__name__).version
+except DistributionNotFound:
+    # package is not installed
+    __version__ = "0.0.0.dev0-unknown"
 session = requests.Session()
 session.headers.update(
     {

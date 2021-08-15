@@ -1,17 +1,10 @@
 """Setup module installation."""
 
-import os
-import re
-
 from setuptools import find_packages, setup
 
 if __name__ == "__main__":
     MODULE_NAME = "simplebot_feeds"
     DESC = "A plugin for SimpleBot, a Delta Chat(http://delta.chat/) bot"
-
-    init_file = os.path.join(MODULE_NAME, "__init__.py")
-    with open(init_file) as fh:
-        version = re.search(r"__version__ = \'(.*?)\'", fh.read(), re.M).group(1)
 
     with open("README.rst") as fh:
         long_description = fh.read()
@@ -22,7 +15,13 @@ if __name__ == "__main__":
 
     setup(
         name=MODULE_NAME,
-        version=version,
+        setup_requires=["setuptools_scm"],
+        use_scm_version={
+            "root": ".",
+            "relative_to": __file__,
+            "tag_regex": r"^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$",
+            "git_describe_command": "git describe --dirty --tags --long --match v*.*.*",
+        },
         description=DESC,
         long_description=long_description,
         long_description_content_type="text/x-rst",
