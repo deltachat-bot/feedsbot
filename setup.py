@@ -2,6 +2,21 @@
 
 from setuptools import find_packages, setup
 
+
+def load_requirements(path: str) -> list:
+    """Load requirements from the given relative path."""
+    with open(path, encoding="utf-8") as file:
+        requirements = []
+        for line in file.read().split("\n"):
+            if line.startswith("-r"):
+                dirname = os.path.dirname(path)
+                filename = line.split(maxsplit=1)[1]
+                requirements.extend(load_requirements(os.path.join(dirname, filename)))
+            elif line and not line.startswith("#"):
+                requirements.append(line.replace("==", ">="))
+        return requirements
+
+
 if __name__ == "__main__":
     MODULE_NAME = "simplebot_feeds"
     DESC = "Subscribe to RSS/Atoms feeds in Delta Chat (SimpleBot plugin)"
@@ -38,7 +53,11 @@ if __name__ == "__main__":
         zip_safe=False,
         include_package_data=True,
         packages=find_packages(),
-        install_requires=["simplebot", "feedparser", "requests", "html2text"],
+        install_requires=load_requirements("requirements/requirements.txt"),
+        extras_require={
+            "test": load_requirements("requirements/requirements-test.txt"),
+            "dev": load_requirements("requirements/requirements-dev.txt"),
+        },
         entry_points={
             "simplebot.plugins": "{0} = {0}".format(MODULE_NAME),
         },

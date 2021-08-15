@@ -1,0 +1,3 @@
+simplebot==2.0.0
+feedparser==6.0.8
+requests==2.26.0
