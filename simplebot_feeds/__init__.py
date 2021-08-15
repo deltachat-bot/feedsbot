@@ -1,5 +1,5 @@
+import functools
 import os
-import socket
 import sqlite3
 from threading import Thread
 from time import sleep
@@ -7,20 +7,25 @@ from typing import Optional
 
 import feedparser
 import html2text
+import requests
 import simplebot
 from deltachat import Chat, Contact, Message
+from feedparser.datetimes import _parse_date
 from feedparser.exceptions import CharacterEncodingOverride
 from simplebot.bot import DeltaBot, Replies
 
 from .db import DBManager
-from .util import ResultProcess
 
 __version__ = "1.0.0"
-feedparser.USER_AGENT = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0)"
-feedparser.USER_AGENT += " Gecko/20100101 Firefox/60.0"
+session = requests.Session()
+session.headers.update(
+    {
+        "user-agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0"
+    }
+)
+session.request = functools.partial(session.request, timeout=15)  # type: ignore
 html2text.config.WRAP_LINKS = False
 db: DBManager
-TIMEOUT = 60
 
 
 @simplebot.hookimpl
@@ -55,19 +60,14 @@ def feed_sub(bot: DeltaBot, payload: str, message: Message, replies: Replies) ->
     url = db.normalize_url(payload)
     feed = db.get_feed(url)
 
-    socket.setdefaulttimeout(20)
     if feed:
-        process = ResultProcess(target=feedparser.parse, args=(feed["url"],))
-        process.start()
-        d = process.get_result(TIMEOUT)
+        d = _parse(feed["url"])
     else:
         max_fc = int(_getdefault(bot, "max_feed_count"))
         if 0 <= max_fc <= len(db.get_feeds()):
             replies.add(text="Sorry, maximum number of feeds reached")
             return
-        process = ResultProcess(target=feedparser.parse, args=(url,))
-        process.start()
-        d = process.get_result(TIMEOUT)
+        d = _parse(url)
         bozo_exception = d.get("bozo_exception", "")
         if (
             d.get("bozo") == 1
@@ -155,14 +155,7 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
         return
 
     bot.logger.debug("Checking feed: %s", f["url"])
-    socket.setdefaulttimeout(20)
-    process = ResultProcess(
-        target=feedparser.parse,
-        args=(f["url"],),
-        kwargs=dict(etag=f["etag"], modified=f["modified"]),
-    )
-    process.start()
-    d = process.get_result(TIMEOUT)
+    d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
 
     bozo_exception = d.get("bozo_exception", "")
     if d.get("bozo") == 1 and not isinstance(bozo_exception, CharacterEncodingOverride):
@@ -248,3 +241,41 @@ def _get_db(bot: DeltaBot) -> DBManager:
     if not os.path.exists(path):
         os.makedirs(path)
     return DBManager(os.path.join(path, "sqlite.db"))
+
+
+def _parse(
+    url: str, etag: str = None, modified: tuple = None
+) -> feedparser.FeedParserDict:
+    headers = dict()
+    if etag:
+        headers["If-None-Match"] = etag
+    if modified:
+        if isinstance(modified, str):
+            modified = _parse_date(modified)
+        short_weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ]
+        headers["If-Modified-Since"] = "%s, %02d %s %04d %02d:%02d:%02d GMT" % (
+            short_weekdays[modified[6]],
+            modified[2],
+            months[modified[1] - 1],
+            modified[0],
+            modified[3],
+            modified[4],
+            modified[5],
+        )
+    with session.get(url, headers=headers) as resp:
+        resp.raise_for_status()
+        return feedparser.parse(resp.text)

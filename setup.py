@@ -39,7 +39,7 @@ if __name__ == "__main__":
         zip_safe=False,
         include_package_data=True,
         packages=find_packages(),
-        install_requires=["simplebot", "feedparser", "html2text"],
+        install_requires=["simplebot", "feedparser", "requests", "html2text"],
         entry_points={
             "simplebot.plugins": "{0} = {0}".format(MODULE_NAME),
         },
