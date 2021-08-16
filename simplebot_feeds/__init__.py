@@ -176,7 +176,6 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
 
     d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
 
-    replies = Replies(bot, logger=bot.logger)
     bozo_exception = d.get("bozo_exception", "Invalid feed")
     if (
         d.get("bozo")
@@ -187,10 +186,12 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
         db.remove_feed(f["url"])
         for gid in fchats:
             try:
+                replies = Replies(bot, logger=bot.logger)
                 replies.add(
                     text=f"❌ Due to errors, this chat was unsubscribed from feed: {f['url']}",
                     chat=bot.get_chat(gid),
                 )
+                replies.send_reply_messages()
             except (ValueError, AttributeError):
                 pass
         return
@@ -203,10 +204,11 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     html = format_entries(d.entries[:50])
     for gid in fchats:
         try:
+            replies = Replies(bot, logger=bot.logger)
             replies.add(html=html, chat=bot.get_chat(gid))
+            replies.send_reply_messages()
         except (ValueError, AttributeError):
             db.remove_fchat(gid)
-    replies.send_reply_messages()
 
     latest = get_latest_date(d.entries) or f["latest"]
     modified = d.get("modified") or d.get("updated")
