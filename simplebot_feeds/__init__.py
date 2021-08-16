@@ -153,7 +153,7 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
 
 
 def list_cmd(message: Message, replies: Replies) -> None:
-    """List feed subscriptions for the current chat."""
+    """List feed subscriptions in the group the command is sent."""
     if message.chat.is_group():
         text = "\n\n".join(f["url"] for f in db.get_feeds(message.chat.id))
         replies.add(text=text or "❌ No feed subscriptions in this chat")
