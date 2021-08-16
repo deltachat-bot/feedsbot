@@ -75,7 +75,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
     else:
         max_fc = int(_getdefault(bot, "max_feed_count"))
         if 0 <= max_fc <= len(db.get_feeds()):
-            replies.add(text="Sorry, maximum number of feeds reached")
+            replies.add(text="❌ Sorry, maximum number of feeds reached")
             return
         d = _parse(url)
         bozo_exception = d.get("bozo_exception", "")
@@ -83,7 +83,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
             d.get("bozo") == 1
             and not isinstance(bozo_exception, CharacterEncodingOverride)
         ) or not d.entries:
-            replies.add(text="Invalid feed url: {}".format(url))
+            replies.add(text="❌ Invalid feed url.", quote=message)
             bot.logger.warning("Invalid feed %s: %s", url, bozo_exception)
             return
         feed = dict(
@@ -103,13 +103,15 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         )
 
     if chat.id in db.get_fchats(feed["url"]):
-        replies.add(text="Chat alredy subscribed to that feed.", chat=chat)
+        replies.add(
+            text="❌ Chat already subscribed to that feed.", chat=chat, quote=message
+        )
         return
 
     db.add_fchat(chat.id, feed["url"])
     title = d.feed.get("title") or "-"
     desc = d.feed.get("description") or "-"
-    text = "Title: {}\n\nURL: {}\n\nDescription: {}".format(title, feed["url"], desc)
+    text = f"Title: {title}\n\nURL: {feed['url']}\n\nDescription: {desc}"
 
     if d.entries and feed["latest"]:
         latest = tuple(map(int, feed["latest"].split()))
@@ -122,25 +124,22 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
 def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
     url = payload
     feed = db.get_feed(url)
-    if not feed:
-        replies.add(text="Unknow feed: {}".format(url))
-        return
 
-    if message.chat.id not in db.get_fchats(feed["url"]):
-        replies.add(text="This chat is not subscribed to: {}".format(feed["url"]))
+    if not feed or message.chat.id not in db.get_fchats(feed["url"]):
+        replies.add(text="❌ This chat is not subscribed to that feed", quote=message)
         return
 
     db.remove_fchat(message.chat.id, feed["url"])
     if not db.get_fchats(feed["url"]):
         db.remove_feed(feed["url"])
-    replies.add(text="Chat unsubscribed from: {}".format(feed["url"]))
+    replies.add(text=f"Chat unsubscribed from: {feed['url']}")
 
 
 def list_cmd(message: Message, replies: Replies) -> None:
     """List feed subscriptions for the current chat."""
     feeds = db.get_feeds(message.chat.id)
     text = "\n\n".join(f["url"] for f in feeds)
-    replies.add(text=text or "No feed subscriptions in this chat")
+    replies.add(text=text or "❌ No feed subscriptions in this chat")
 
 
 def _check_feeds(bot: DeltaBot) -> None:
@@ -194,12 +193,10 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
 def format_entries(entries: list) -> str:
     entries_text = []
     for e in entries:
-        t = '<a href="{}"><h3>{}</h3></a>'.format(
-            e.get("link") or "", e.get("title") or "NO TITLE"
-        )
+        t = f'<a href="{e.get("link") or ""}"><h3>{e.get("title") or "NO TITLE"}</h3></a>'
         pub_date = e.get("published")
         if pub_date:
-            t += "<p>📆 <small><em>{}</em></small></p>".format(pub_date)
+            t += f"<p>📆 <small><em>{pub_date}</em></small></p>"
         desc = e.get("description") or ""
         if not desc and e.get("content"):
             for c in e.get("content"):
