@@ -21,7 +21,7 @@ def load_requirements(path: str) -> list:
 
 if __name__ == "__main__":
     MODULE_NAME = "simplebot_feeds"
-    DESC = "Subscribe to RSS/Atoms feeds in Delta Chat (SimpleBot plugin)"
+    DESC = "Subscribe to RSS/Atom feeds in Delta Chat (SimpleBot plugin)"
     KEYWORDS = "simplebot plugin deltachat feeds rss atom"
 
     with open("README.rst") as fh:

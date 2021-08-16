@@ -19,7 +19,7 @@ Feeds
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/psf/black
 
-A `SimpleBot`_ plugin that allows to subscribe to RSS/Atoms feeds.
+A `SimpleBot`_ plugin that allows to subscribe to RSS/Atom feeds.
 
 Install
 -------
