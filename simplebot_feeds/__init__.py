@@ -137,9 +137,15 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
 
 def list_cmd(message: Message, replies: Replies) -> None:
     """List feed subscriptions for the current chat."""
-    feeds = db.get_feeds(message.chat.id)
-    text = "\n\n".join(f["url"] for f in feeds)
-    replies.add(text=text or "❌ No feed subscriptions in this chat")
+    if message.chat.is_group():
+        feeds = db.get_feeds(message.chat.id)
+        text = "\n\n".join(f["url"] for f in feeds)
+        replies.add(text=text or "❌ No feed subscriptions in this chat")
+    else:
+        replies.add(
+            text="❌ You must send that command in the group where you have the subscriptions",
+            quote=message,
+        )
 
 
 def _check_feeds(bot: DeltaBot) -> None:
