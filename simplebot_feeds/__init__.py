@@ -1,7 +1,9 @@
 import datetime
 import functools
 import itertools
+import mimetypes
 import os
+import re
 import sqlite3
 import time
 from tempfile import NamedTemporaryFile
@@ -113,8 +115,10 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         url = d.feed.get("image", {}).get("href") or d.feed.get("logo")
         if url:
             with session.get(url) as resp:
-                with NamedTemporaryFile(prefix="group-image-") as file:
-                    if resp.status_code < 400 or resp.status_code >= 600:
+                if resp.status_code < 400 or resp.status_code >= 600:
+                    with NamedTemporaryFile(
+                        prefix="group-image-", suffix=_get_img_ext(resp)
+                    ) as file:
                         file.write(resp.content)
                         try:
                             chat.set_profile_image(file.name)
@@ -325,3 +329,20 @@ def _parse(
         if 400 <= resp.status_code < 600:
             return feedparser.parse("invalid")
         return feedparser.parse(resp.text)
+
+
+def _get_img_ext(resp: requests.Response) -> str:
+    disp = resp.headers.get("content-disposition")
+    if disp is not None and re.findall("filename=(.+)", disp):
+        fname = re.findall("filename=(.+)", disp)[0].strip('"')
+    else:
+        fname = resp.url.split("/")[-1].split("?")[0].split("#")[0]
+    if "." in fname:
+        ext = "." + fname.rsplit(".", maxsplit=1)[-1]
+    else:
+        ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+        if ctype == "image/jpeg":
+            ext = ".jpg"
+        else:
+            ext = mimetypes.guess_extension(ctype)
+    return ext
