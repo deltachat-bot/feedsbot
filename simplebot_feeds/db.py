@@ -41,7 +41,6 @@ class DBManager:
             )
 
     def remove_feed(self, url: str) -> None:
-        url = self.normalize_url(url)
         with self.db:
             self.db.execute("DELETE FROM fchats WHERE feed=?", (url,))
             self.db.execute("DELETE FROM feeds WHERE url=?", (url,))
