@@ -98,16 +98,15 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
 
     if message.chat.is_group():
         chat = message.chat
+        if chat.id in db.get_fchats(feed["url"]):
+            replies.add(
+                text="❌ Chat already subscribed to that feed.", chat=chat, quote=message
+            )
+            return
     else:
         chat = bot.create_group(
             d.feed.get("title") or url, [message.get_sender_contact()]
         )
-
-    if chat.id in db.get_fchats(feed["url"]):
-        replies.add(
-            text="❌ Chat already subscribed to that feed.", chat=chat, quote=message
-        )
-        return
 
     db.add_fchat(chat.id, feed["url"])
     title = d.feed.get("title") or "-"
