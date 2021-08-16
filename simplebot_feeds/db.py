@@ -1,5 +1,5 @@
 import sqlite3
-from typing import List, Optional
+from typing import Iterator, Optional
 
 
 class DBManager:
@@ -61,16 +61,18 @@ class DBManager:
         url = self.normalize_url(url)
         return self.db.execute("SELECT * FROM feeds WHERE url=?", (url,)).fetchone()
 
-    def get_feeds(self, gid: int = None) -> List[sqlite3.Row]:
+    def get_feeds(self, gid: int = None) -> Iterator[sqlite3.Row]:
         if gid is None:
-            return self.db.execute("SELECT * FROM feeds").fetchall()
+            for row in self.db.execute("SELECT * FROM feeds"):
+                yield row
         rows = self.db.execute("SELECT feed FROM fchats WHERE gid=?", (gid,)).fetchall()
         if not rows:
-            return []
+            return
         rows = [r[0] for r in rows]
         q = "SELECT * FROM feeds WHERE "
         q += " or ".join("url=?" for r in rows)
-        return self.db.execute(q, rows).fetchall()
+        for row in self.db.execute(q, rows):
+            yield row
 
     def add_fchat(self, gid: int, url: str) -> None:
         url = self.normalize_url(url)
@@ -83,10 +85,10 @@ class DBManager:
         else:
             self.commit("DELETE FROM fchats WHERE gid=?", (gid,))
 
-    def get_fchats(self, url: str) -> List[int]:
+    def get_fchats(self, url: str) -> Iterator[int]:
         url = self.normalize_url(url)
-        rows = self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,))
-        return [r[0] for r in rows]
+        for row in self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,)):
+            yield row[0]
 
     def normalize_url(self, url: str) -> str:
         if not url.startswith("http"):

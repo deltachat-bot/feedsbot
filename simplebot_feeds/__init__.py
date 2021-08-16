@@ -1,5 +1,6 @@
 import datetime
 import functools
+import itertools
 import os
 import sqlite3
 import time
@@ -60,10 +61,11 @@ def deltabot_member_removed(bot: DeltaBot, chat: Chat, contact: Contact) -> None
     me = bot.self_contact
     if me == contact or len(chat.get_contacts()) <= 1:
         feeds = db.get_feeds(chat.id)
-        if feeds:
+        feed = next(feeds, None)
+        if feed is not None:
             db.remove_fchat(chat.id)
-            for feed in feeds:
-                if not db.get_fchats(feed["url"]):
+            for feed in itertools.chain([feed], feeds):
+                if next(db.get_fchats(feed["url"]), None) is None:
                     db.remove_feed(feed["url"])
 
 
@@ -75,7 +77,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         d = _parse(feed["url"])
     else:
         max_fc = int(_getdefault(bot, "max_feed_count"))
-        if 0 <= max_fc <= len(db.get_feeds()):
+        if 0 <= max_fc <= sum(1 for _ in db.get_feeds()):
             replies.add(text="❌ Sorry, maximum number of feeds reached")
             return
         d = _parse(url)
@@ -130,7 +132,7 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
         return
 
     db.remove_fchat(message.chat.id, feed["url"])
-    if not db.get_fchats(feed["url"]):
+    if next(db.get_fchats(feed["url"]), None) is None:
         db.remove_feed(feed["url"])
     replies.add(text=f"Chat unsubscribed from: {feed['url']}")
 
@@ -138,8 +140,7 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
 def list_cmd(message: Message, replies: Replies) -> None:
     """List feed subscriptions for the current chat."""
     if message.chat.is_group():
-        feeds = db.get_feeds(message.chat.id)
-        text = "\n\n".join(f["url"] for f in feeds)
+        text = "\n\n".join(f["url"] for f in db.get_feeds(message.chat.id))
         replies.add(text=text or "❌ No feed subscriptions in this chat")
     else:
         replies.add(
@@ -153,6 +154,7 @@ def _check_feeds(bot: DeltaBot) -> None:
         bot.logger.debug("Checking feeds")
         now = time.time()
         for f in db.get_feeds():
+            bot.logger.debug("Checking feed: %s", f["url"])
             try:
                 _check_feed(bot, f)
             except Exception as err:
@@ -165,11 +167,13 @@ def _check_feeds(bot: DeltaBot) -> None:
 
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     fchats = db.get_fchats(f["url"])
-    if not fchats:
+    fchat = next(fchats, None)
+    if fchat is None:
         db.remove_feed(f["url"])
+        bot.logger.debug("Removed feed: %s", f["url"])
         return
+    fchats = itertools.chain([fchat], fchats)
 
-    bot.logger.debug("Checking feed: %s", f["url"])
     d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
 
     replies = Replies(bot, logger=bot.logger)
