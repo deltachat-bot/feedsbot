@@ -117,13 +117,18 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
             with session.get(url) as resp:
                 if resp.status_code < 400 or resp.status_code >= 600:
                     with NamedTemporaryFile(
-                        prefix="group-image-", suffix=_get_img_ext(resp)
+                        dir=bot.account.get_blobdir(),
+                        prefix="group-image-",
+                        suffix=_get_img_ext(resp),
+                        delete=False,
                     ) as file:
+                        path = file.name
+                    with open(path, "wb") as file:
                         file.write(resp.content)
-                        try:
-                            chat.set_profile_image(file.name)
-                        except ValueError as ex:
-                            bot.logger.exception(ex)
+                    try:
+                        chat.set_profile_image(path)
+                    except ValueError as ex:
+                        bot.logger.exception(ex)
 
     db.add_fchat(chat.id, feed["url"])
     title = d.feed.get("title") or "-"
