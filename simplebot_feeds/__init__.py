@@ -158,6 +158,7 @@ def _check_feeds(bot: DeltaBot) -> None:
                 _check_feed(bot, f)
             except Exception as err:
                 bot.logger.exception(err)
+        bot.logger.debug("Done checking feeds")
         delay = int(_getdefault(bot, "delay")) - time.time() + now
         if delay > 0:
             time.sleep(delay)
@@ -165,7 +166,6 @@ def _check_feeds(bot: DeltaBot) -> None:
 
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     fchats = db.get_fchats(f["url"])
-
     if not fchats:
         db.remove_feed(f["url"])
         return
@@ -173,9 +173,23 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     bot.logger.debug("Checking feed: %s", f["url"])
     d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
 
-    bozo_exception = d.get("bozo_exception", "")
-    if d.get("bozo") == 1 and not isinstance(bozo_exception, CharacterEncodingOverride):
+    replies = Replies(bot, logger=bot.logger)
+    bozo_exception = d.get("bozo_exception", "Invalid feed")
+    if (
+        d.get("bozo")
+        and not isinstance(bozo_exception, CharacterEncodingOverride)
+        and not d.get("entries")
+    ):
         bot.logger.exception(bozo_exception)
+        db.remove_feed(f["url"])
+        for gid in fchats:
+            try:
+                replies.add(
+                    text=f"❌ Due to errors, this chat was unsubscribed from feed: {f['url']}",
+                    chat=bot.get_chat(gid),
+                )
+            except (ValueError, AttributeError):
+                pass
         return
 
     if d.entries and f["latest"]:
@@ -184,7 +198,6 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
         return
 
     html = format_entries(d.entries[:50])
-    replies = Replies(bot, logger=bot.logger)
     for gid in fchats:
         try:
             replies.add(html=html, chat=bot.get_chat(gid))
@@ -293,5 +306,6 @@ def _parse(
             modified[5],
         )
     with session.get(url, headers=headers) as resp:
-        resp.raise_for_status()
+        if 400 <= resp.status_code < 600:
+            return feedparser.parse("invalid")
         return feedparser.parse(resp.text)
