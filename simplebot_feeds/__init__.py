@@ -1,3 +1,4 @@
+import datetime
 import functools
 import os
 import sqlite3
@@ -259,12 +260,14 @@ def _get_db(bot: DeltaBot) -> DBManager:
 def _parse(
     url: str, etag: str = None, modified: tuple = None
 ) -> feedparser.FeedParserDict:
-    headers = dict()
+    headers = {"A-IM": "feed", "Accept-encoding": "gzip, deflate"}
     if etag:
         headers["If-None-Match"] = etag
     if modified:
         if isinstance(modified, str):
             modified = _parse_date(modified)
+        elif isinstance(modified, datetime.datetime):
+            modified = modified.utctimetuple()
         short_weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         months = [
             "Jan",
