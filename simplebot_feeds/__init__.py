@@ -4,6 +4,7 @@ import itertools
 import os
 import sqlite3
 import time
+from tempfile import NamedTemporaryFile
 from threading import Thread
 from typing import Optional
 
@@ -109,6 +110,15 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         chat = bot.create_group(
             d.feed.get("title") or url, [message.get_sender_contact()]
         )
+        url = d.feed.get("image", {}).get("href") or d.feed.get("logo")
+        if url:
+            with session.get(url) as resp:
+                with NamedTemporaryFile(prefix="group-image-") as file:
+                    file.write(resp.content)
+                    try:
+                        chat.set_profile_image(file.name)
+                    except ValueError as ex:
+                        bot.logger.exception(ex)
 
     db.add_fchat(chat.id, feed["url"])
     title = d.feed.get("title") or "-"
