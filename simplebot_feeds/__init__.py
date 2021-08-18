@@ -67,7 +67,7 @@ def deltabot_member_removed(bot: DeltaBot, chat: Chat, contact: Contact) -> None
 
 
 def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> None:
-    url = db.normalize_url(payload)
+    url = _normalize_url(payload)
     feed = db.get_feed(url)
 
     if feed:
@@ -138,8 +138,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
 
 
 def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
-    url = payload
-    feed = db.get_feed(url)
+    feed = db.get_feed(_normalize_url(payload))
 
     if not feed or message.chat.id not in db.get_fchats(feed["url"]):
         replies.add(text="❌ This chat is not subscribed to that feed", quote=message)
@@ -339,3 +338,9 @@ def _get_img_ext(resp: requests.Response) -> str:
         else:
             ext = mimetypes.guess_extension(ctype)
     return ext
+
+
+def _normalize_url(url: str) -> str:
+    if not url.startswith("http"):
+        url = "http://" + url
+    return url.rstrip("/")

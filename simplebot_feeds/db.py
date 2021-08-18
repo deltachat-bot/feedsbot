@@ -36,7 +36,6 @@ class DBManager:
     # ==== feeds =====
 
     def add_feed(self, url: str, etag: str, modified: str, latest: str) -> None:
-        url = self.normalize_url(url)
         with self.db:
             self.db.execute(
                 "INSERT INTO feeds VALUES (?,?,?,?)", (url, etag, modified, latest)
@@ -61,7 +60,6 @@ class DBManager:
         self.commit("UPDATE feeds SET errors=? WHERE url=?", (errors, url))
 
     def get_feed(self, url: str) -> Optional[sqlite3.Row]:
-        url = self.normalize_url(url)
         return self.db.execute("SELECT * FROM feeds WHERE url=?", (url,)).fetchone()
 
     def get_feeds_count(self) -> int:
@@ -82,7 +80,6 @@ class DBManager:
             yield row
 
     def add_fchat(self, gid: int, url: str) -> None:
-        url = self.normalize_url(url)
         self.commit("INSERT INTO fchats VALUES (?,?)", (gid, url))
 
     def remove_fchat(self, gid: int, url: str = None) -> None:
@@ -104,13 +101,5 @@ class DBManager:
             self.commit("DELETE FROM fchats WHERE gid=?", (gid,))
 
     def get_fchats(self, url: str) -> Iterator[int]:
-        url = self.normalize_url(url)
         for row in self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,)):
             yield row[0]
-
-    def normalize_url(self, url: str) -> str:
-        if not url.startswith("http"):
-            url = "http://" + url
-        if url.endswith("/"):
-            url = url[:-1]
-        return url
