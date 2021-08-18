@@ -63,13 +63,7 @@ def deltabot_start(bot: DeltaBot) -> None:
 def deltabot_member_removed(bot: DeltaBot, chat: Chat, contact: Contact) -> None:
     me = bot.self_contact
     if me == contact or len(chat.get_contacts()) <= 1:
-        feeds = db.get_feeds(chat.id)
-        feed = next(feeds, None)
-        if feed is not None:
-            db.remove_fchat(chat.id)
-            for feed in itertools.chain([feed], feeds):
-                if next(db.get_fchats(feed["url"]), None) is None:
-                    db.remove_feed(feed["url"])
+        db.remove_fchat(chat.id)
 
 
 def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> None:
@@ -80,7 +74,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         d = _parse(feed["url"])
     else:
         max_fc = int(_getdefault(bot, "max_feed_count"))
-        if 0 <= max_fc <= sum(1 for _ in db.get_feeds()):
+        if 0 <= max_fc <= db.get_feeds_count():
             replies.add(text="❌ Sorry, maximum number of feeds reached")
             return
         d = _parse(url)
@@ -152,8 +146,6 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
         return
 
     db.remove_fchat(message.chat.id, feed["url"])
-    if next(db.get_fchats(feed["url"]), None) is None:
-        db.remove_feed(feed["url"])
     replies.add(text=f"Chat unsubscribed from: {feed['url']}")
 
 
@@ -177,8 +169,24 @@ def _check_feeds(bot: DeltaBot) -> None:
             bot.logger.debug("Checking feed: %s", f["url"])
             try:
                 _check_feed(bot, f)
+                if f["errors"] != 0:
+                    db.set_feed_errors(f["url"], 0)
             except Exception as err:
                 bot.logger.exception(err)
+                if f["errors"] < 50:
+                    db.set_feed_errors(f["url"], f["errors"] + 1)
+                    continue
+                for gid in db.get_fchats(f["url"]):
+                    try:
+                        replies = Replies(bot, logger=bot.logger)
+                        replies.add(
+                            text=f"❌ Due to errors, this chat was unsubscribed from feed: {f['url']}",
+                            chat=bot.get_chat(gid),
+                        )
+                        replies.send_reply_messages()
+                    except (ValueError, AttributeError):
+                        pass
+                db.remove_feed(f["url"])
         bot.logger.debug("Done checking feeds")
         delay = int(_getdefault(bot, "delay")) - time.time() + now
         if delay > 0:
@@ -186,42 +194,23 @@ def _check_feeds(bot: DeltaBot) -> None:
 
 
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
-    fchats = db.get_fchats(f["url"])
-    fchat = next(fchats, None)
-    if fchat is None:
-        db.remove_feed(f["url"])
-        bot.logger.debug("Removed feed: %s", f["url"])
-        return
-    fchats = itertools.chain([fchat], fchats)
-
     d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
+    fchats = db.get_fchats(f["url"])
 
-    bozo_exception = d.get("bozo_exception", "Invalid feed")
+    bozo_exception = d.get("bozo_exception", ValueError("Invalid feed"))
     if (
         d.get("bozo")
         and not isinstance(bozo_exception, CharacterEncodingOverride)
         and not d.get("entries")
     ):
-        bot.logger.exception(bozo_exception)
-        db.remove_feed(f["url"])
-        for gid in fchats:
-            try:
-                replies = Replies(bot, logger=bot.logger)
-                replies.add(
-                    text=f"❌ Due to errors, this chat was unsubscribed from feed: {f['url']}",
-                    chat=bot.get_chat(gid),
-                )
-                replies.send_reply_messages()
-            except (ValueError, AttributeError):
-                pass
-        return
+        raise bozo_exception
 
     if d.entries and f["latest"]:
         d.entries = get_new_entries(d.entries, tuple(map(int, f["latest"].split())))
     if not d.entries:
         return
 
-    html = format_entries(d.entries[:50])
+    html = format_entries(d.entries[:100])
     for gid in fchats:
         try:
             replies = Replies(bot, logger=bot.logger)
@@ -331,8 +320,7 @@ def _parse(
             modified[5],
         )
     with session.get(url, headers=headers) as resp:
-        if 400 <= resp.status_code < 600:
-            return feedparser.parse("invalid")
+        resp.raise_for_status()
         return feedparser.parse(resp.text)
 
 
