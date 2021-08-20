@@ -71,20 +71,22 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
     feed = db.get_feed(url)
 
     if feed:
-        d = _parse(feed["url"])
+        try:
+            d = _parse(feed["url"])
+        except Exception as ex:
+            replies.add(text="❌ Invalid feed url.", quote=message)
+            bot.logger.exception("Invalid feed %s: %s", url, ex)
+            return
     else:
         max_fc = int(_getdefault(bot, "max_feed_count"))
         if 0 <= max_fc <= db.get_feeds_count():
             replies.add(text="❌ Sorry, maximum number of feeds reached")
             return
-        d = _parse(url)
-        bozo_exception = d.get("bozo_exception", "")
-        if (
-            d.get("bozo") == 1
-            and not isinstance(bozo_exception, CharacterEncodingOverride)
-        ) or not d.entries:
+        try:
+            d = _parse(url)
+        except Exception as ex:
             replies.add(text="❌ Invalid feed url.", quote=message)
-            bot.logger.warning("Invalid feed %s: %s", url, bozo_exception)
+            bot.logger.exception("Invalid feed %s: %s", url, ex)
             return
         feed = dict(
             url=url,
@@ -195,14 +197,6 @@ def _check_feeds(bot: DeltaBot) -> None:
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     d = _parse(f["url"], etag=f["etag"], modified=f["modified"])
     fchats = db.get_fchats(f["url"])
-
-    bozo_exception = d.get("bozo_exception", ValueError("Invalid feed"))
-    if (
-        d.get("bozo")
-        and not isinstance(bozo_exception, CharacterEncodingOverride)
-        and not d.get("entries")
-    ):
-        raise bozo_exception
 
     if d.entries and f["latest"]:
         d.entries = get_new_entries(d.entries, tuple(map(int, f["latest"].split())))
@@ -320,7 +314,15 @@ def _parse(
         )
     with session.get(url, headers=headers) as resp:
         resp.raise_for_status()
-        return feedparser.parse(resp.text)
+        dict_ = feedparser.parse(resp.text)
+    bozo_exception = dict_.get("bozo_exception", ValueError("Invalid feed"))
+    if (
+        dict_.get("bozo")
+        and not isinstance(bozo_exception, CharacterEncodingOverride)
+        and not dict_.get("entries")
+    ):
+        raise bozo_exception
+    return dict_
 
 
 def _get_img_ext(resp: requests.Response) -> str:
