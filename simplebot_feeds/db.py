@@ -38,7 +38,7 @@ class DBManager:
     def add_feed(self, url: str, etag: str, modified: str, latest: str) -> None:
         with self.db:
             self.db.execute(
-                "INSERT INTO feeds VALUES (?,?,?,?)", (url, etag, modified, latest)
+                "INSERT INTO feeds VALUES (?,?,?,?,?)", (url, etag, modified, latest, 0)
             )
 
     def remove_feed(self, url: str) -> None:
