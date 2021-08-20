@@ -24,7 +24,7 @@ if __name__ == "__main__":
     DESC = "Subscribe to RSS/Atom feeds in Delta Chat (SimpleBot plugin)"
     KEYWORDS = "simplebot plugin deltachat feeds rss atom"
 
-    with open("README.rst") as fh:
+    with open("README.rst", encoding="utf-8") as fh:
         long_description = fh.read()
 
     setup(
