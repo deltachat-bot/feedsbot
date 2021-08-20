@@ -23,13 +23,6 @@ class DBManager:
                  PRIMARY KEY(gid, feed))"""
             )
 
-    def execute(self, statement: str, args=()) -> sqlite3.Cursor:
-        return self.db.execute(statement, args)
-
-    def commit(self, statement: str, args=()) -> sqlite3.Cursor:
-        with self.db:
-            return self.db.execute(statement, args)
-
     def close(self) -> None:
         self.db.close()
 
@@ -53,11 +46,15 @@ class DBManager:
         modified: Optional[str],
         latest: Optional[str],
     ) -> None:
-        q = "UPDATE feeds SET etag=?, modified=?, latest=? WHERE url=?"
-        self.commit(q, (etag, modified, latest, url))
+        with self.db:
+            self.db.execute(
+                "UPDATE feeds SET etag=?, modified=?, latest=? WHERE url=?",
+                (etag, modified, latest, url),
+            )
 
     def set_feed_errors(self, url: str, errors: int) -> None:
-        self.commit("UPDATE feeds SET errors=? WHERE url=?", (errors, url))
+        with self.db:
+            self.db.execute("UPDATE feeds SET errors=? WHERE url=?", (errors, url))
 
     def get_feed(self, url: str) -> Optional[sqlite3.Row]:
         return self.db.execute("SELECT * FROM feeds WHERE url=?", (url,)).fetchone()
@@ -80,7 +77,8 @@ class DBManager:
             yield row
 
     def add_fchat(self, gid: int, url: str) -> None:
-        self.commit("INSERT INTO fchats VALUES (?,?)", (gid, url))
+        with self.db:
+            self.db.execute("INSERT INTO fchats VALUES (?,?)", (gid, url))
 
     def remove_fchat(self, gid: int, url: str = None) -> None:
         if url:
@@ -95,10 +93,11 @@ class DBManager:
             ).fetchone()[0]
             if fchats_count <= 1:
                 self.remove_feed(row[0])
-        if url:
-            self.commit("DELETE FROM fchats WHERE gid=? AND feed=?", (gid, url))
-        else:
-            self.commit("DELETE FROM fchats WHERE gid=?", (gid,))
+        with self.db:
+            if url:
+                self.db.execute("DELETE FROM fchats WHERE gid=? AND feed=?", (gid, url))
+            else:
+                self.db.execute("DELETE FROM fchats WHERE gid=?", (gid,))
 
     def get_fchats(self, url: str) -> Iterator[int]:
         for row in self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,)):
