@@ -1,8 +1,12 @@
+"""Database utilities"""
+
 import sqlite3
 from typing import Iterator, Optional
 
 
 class DBManager:
+    """Database manager"""
+
     def __init__(self, db_path: str) -> None:
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
@@ -102,3 +106,6 @@ class DBManager:
     def get_fchats(self, url: str) -> Iterator[int]:
         for row in self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,)):
             yield row[0]
+
+
+manager: DBManager = None  # type: ignore
