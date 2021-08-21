@@ -137,7 +137,9 @@ def get_default(bot: DeltaBot, key: str, value=None) -> str:
 
 
 def init_db(bot: DeltaBot) -> None:
-    path = os.path.join(os.path.dirname(bot.account.db_path), __name__)
+    path = os.path.join(
+        os.path.dirname(bot.account.db_path), __name__.split(".", maxsplit=1)[0]
+    )
     if not os.path.exists(path):
         os.makedirs(path)
     db.manager = db.DBManager(os.path.join(path, "sqlite.db"))
