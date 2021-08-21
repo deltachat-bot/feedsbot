@@ -35,7 +35,7 @@ By default the time (in seconds) between checks for feeds updates is 300 seconds
 
   simplebot -a bot@example.com db -s simplebot_feeds/delay 600
 
-To limit the total number of feeds subscriptions the bot will allow::
+To limit the total number of feeds subscriptions the bot will allow (by default it is unlimited)::
 
   simplebot -a bot@example.com db -s simplebot_feeds/max_feed_count 1000
 
