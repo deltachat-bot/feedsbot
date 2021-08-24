@@ -129,9 +129,10 @@ def get_latest_date(entries: list) -> Optional[str]:
 
 
 def get_default(bot: DeltaBot, key: str, value=None) -> str:
-    val = bot.get(key, scope=__name__)
+    scope = __name__.split(".", maxsplit=1)[0]
+    val = bot.get(key, scope=scope)
     if val is None and value is not None:
-        bot.set(key, value, scope=__name__)
+        bot.set(key, value, scope=scope)
         val = value
     return val
 
