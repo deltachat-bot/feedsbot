@@ -61,6 +61,6 @@ if __name__ == "__main__":
             "dev": load_requirements("requirements/requirements-dev.txt"),
         },
         entry_points={
-            "simplebot.plugins": "{0} = {0}".format(MODULE_NAME),
+            "simplebot.plugins": f"{MODULE_NAME} = {MODULE_NAME}",
         },
     )

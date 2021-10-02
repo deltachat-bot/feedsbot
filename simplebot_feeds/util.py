@@ -172,7 +172,7 @@ def parse_feed(
             "Nov",
             "Dec",
         ]
-        headers["If-Modified-Since"] = "%s, %02d %s %04d %02d:%02d:%02d GMT" % (
+        headers["If-Modified-Since"] = "%s, %02d %s %04d %02d:%02d:%02d GMT" % (  # noqa
             short_weekdays[modified[6]],
             modified[2],
             months[modified[1] - 1],
