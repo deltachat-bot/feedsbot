@@ -86,18 +86,26 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
 def format_entries(entries: list) -> str:
     entries_text = []
     for e in entries:
-        t = f'<a href="{e.get("link") or ""}"><h3>{e.get("title") or "NO TITLE"}</h3></a>'
-        pub_date = e.get("published")
+        title = e.get("title") or ""
+        pub_date = e.get("published") or ""
         if pub_date:
-            t += f"<p>📆 <small><em>{pub_date}</em></small></p>"
+            pub_date = f"<p>📆 <small><em>{pub_date}</em></small></p>"
         desc = e.get("description") or ""
         if not desc and e.get("content"):
             for c in e.get("content"):
                 if c.get("type") == "text/html":
                     desc += c["value"]
-        if desc and desc != e.get("title"):
-            t += desc
-        entries_text.append(t)
+
+        if desc.startswith(title.rstrip(".")):
+            title = ""
+
+        if title:
+            title = f'<a href="{e.get("link") or ""}"><h3>{title}</h3></a>'
+        elif pub_date:
+            pub_date = f'<a href="{e.get("link") or ""}">{pub_date}</a>'
+        elif desc:
+            desc = f'<a href="{e.get("link") or ""}">{desc}</a>'
+        entries_text.append(title + pub_date + desc)
     return "<br><hr>".join(entries_text)
 
 
