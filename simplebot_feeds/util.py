@@ -89,8 +89,6 @@ def format_entries(entries: list) -> str:
     for e in entries:
         title = e.get("title") or ""
         pub_date = e.get("published") or ""
-        if pub_date:
-            pub_date = f"<p>📆 <small><em>{pub_date}</em></small></p>"
         desc = e.get("description") or ""
         if not desc and e.get("content"):
             for c in e.get("content"):
@@ -108,6 +106,9 @@ def format_entries(entries: list) -> str:
             pub_date = f'<a href="{e.get("link") or ""}">{pub_date}</a>'
         elif desc:
             desc = f'<a href="{e.get("link") or ""}">{desc}</a>'
+
+        if pub_date:
+            pub_date = f"<p>📆 <small><em>{pub_date}</em></small></p>"
 
         text = title + pub_date + desc
         if text:
