@@ -96,7 +96,7 @@ def format_entries(entries: list) -> str:
                 if c.get("type") == "text/html":
                     desc += c["value"]
 
-        if desc.startswith(title.rstrip(".")):
+        if title.rstrip(".") in desc:
             title = ""
 
         if title:
@@ -105,7 +105,11 @@ def format_entries(entries: list) -> str:
             pub_date = f'<a href="{e.get("link") or ""}">{pub_date}</a>'
         elif desc:
             desc = f'<a href="{e.get("link") or ""}">{desc}</a>'
-        entries_text.append(title + pub_date + desc)
+
+        text = title + pub_date + desc
+        if text:
+            entries_text.append(text)
+
     return "<br><hr>".join(entries_text)
 
 
