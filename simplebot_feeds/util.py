@@ -10,6 +10,7 @@ import time
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
+import bs4
 import feedparser
 import requests
 from deltachat import Chat
@@ -96,7 +97,9 @@ def format_entries(entries: list) -> str:
                 if c.get("type") == "text/html":
                     desc += c["value"]
 
-        if title.rstrip(".") in desc:
+        if " ".join(
+            bs4.BeautifulSoup(desc, "html.parser").get_text().split()
+        ).startswith(" ".join(title.rstrip(".").split())):
             title = ""
 
         if title:
