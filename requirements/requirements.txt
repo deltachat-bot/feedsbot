@@ -2,3 +2,4 @@ simplebot==2.2.1
 feedparser==6.0.8
 requests==2.26.0
 beautifulsoup4==4.9.3
+html5lib==1.1

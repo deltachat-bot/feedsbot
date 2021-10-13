@@ -95,9 +95,12 @@ def format_entries(entries: list) -> str:
                 if c.get("type") == "text/html":
                     desc += c["value"]
 
-        if " ".join(
-            bs4.BeautifulSoup(desc, "html.parser").get_text().split()
-        ).startswith(" ".join(title.rstrip(".").split())):
+        soup = bs4.BeautifulSoup(desc, "html5lib")
+        for tag in soup("br"):
+            tag.replace_with("\n")
+        if " ".join(soup.get_text().split()).startswith(
+            " ".join(title.rstrip(".").split())
+        ):
             title = ""
 
         if title:
