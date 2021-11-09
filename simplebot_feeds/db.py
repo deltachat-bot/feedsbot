@@ -109,5 +109,9 @@ class DBManager:
         ):
             yield row[0], row[1]
 
+    def get_fchat_ids(self, url: str) -> Iterator[int]:
+        for gid, _ in self.get_fchats(url):
+            yield gid
+
 
 manager: DBManager = None  # type: ignore

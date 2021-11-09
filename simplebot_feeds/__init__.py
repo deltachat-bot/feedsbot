@@ -88,7 +88,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
 
     if message.chat.is_group():
         chat = message.chat
-        if chat.id in db.manager.get_fchats(feed["url"]):
+        if chat.id in db.manager.get_fchat_ids(feed["url"]):
             replies.add(
                 text="❌ Chat already subscribed to that feed.", chat=chat, quote=message
             )
@@ -118,7 +118,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
 def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
     feed = db.manager.get_feed(normalize_url(payload))
 
-    if not feed or message.chat.id not in db.manager.get_fchats(feed["url"]):
+    if not feed or message.chat.id not in db.manager.get_fchat_ids(feed["url"]):
         replies.add(text="❌ This chat is not subscribed to that feed", quote=message)
         return
 

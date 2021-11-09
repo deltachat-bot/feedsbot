@@ -44,7 +44,7 @@ def check_feeds(bot: DeltaBot) -> None:
                 if f["errors"] < 50:
                     db.manager.set_feed_errors(f["url"], f["errors"] + 1)
                     continue
-                for gid in db.manager.get_fchats(f["url"]):
+                for gid in db.manager.get_fchat_ids(f["url"]):
                     try:
                         replies = Replies(bot, logger=bot.logger)
                         replies.add(
@@ -63,7 +63,6 @@ def check_feeds(bot: DeltaBot) -> None:
 
 def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     d = parse_feed(f["url"], etag=f["etag"], modified=f["modified"])
-    fchats = db.manager.get_fchats(f["url"])
 
     if d.entries and f["latest"]:
         d.entries = get_new_entries(d.entries, tuple(map(int, f["latest"].split())))
@@ -71,7 +70,7 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
         return
 
     full_html = format_entries(d.entries[:100], "")
-    for gid, filter_ in fchats:
+    for gid, filter_ in db.manager.get_fchats(f["url"]):
         html = full_html if not filter_ else format_entries(d.entries[:100], filter_)
         if not html:
             continue
