@@ -119,7 +119,7 @@ def format_entries(entries: list) -> str:
         if text:
             entries_text.append(text)
 
-    return "<br><hr>".join(entries_text)
+    return "<br/><hr/>".join(entries_text)
 
 
 def get_new_entries(entries: list, date: tuple) -> list:
