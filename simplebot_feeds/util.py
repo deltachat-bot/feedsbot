@@ -70,10 +70,13 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     if not d.entries:
         return
 
-    html = format_entries(d.entries[:100])
-    for gid in fchats:
+    full_html = format_entries(d.entries[:100], "")
+    for gid, filter_ in fchats:
+        html = full_html if filter_ == "" else format_entries(d.entries[:100], filter_)
+        if not html:
+            continue
+        replies = Replies(bot, logger=bot.logger)
         try:
-            replies = Replies(bot, logger=bot.logger)
             replies.add(html=html, chat=bot.get_chat(gid))
             replies.send_reply_messages()
         except (ValueError, AttributeError):
@@ -84,7 +87,7 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
     db.manager.update_feed(f["url"], d.get("etag"), modified, latest)
 
 
-def format_entries(entries: list) -> str:
+def format_entries(entries: list, filter_: str) -> str:
     entries_text = []
     for e in entries:
         title = e.get("title") or ""
@@ -94,6 +97,9 @@ def format_entries(entries: list) -> str:
             for c in e.get("content"):
                 if c.get("type") == "text/html":
                     desc += c["value"]
+
+        if filter_ not in title and filter_ not in desc:
+            continue
 
         if title:
             desc_soup = bs4.BeautifulSoup(desc, "html5lib")

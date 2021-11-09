@@ -55,7 +55,9 @@ def deltabot_member_removed(bot: DeltaBot, chat: Chat, contact: Contact) -> None
 
 
 def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> None:
-    url = normalize_url(payload)
+    args = payload.split(maxsplit=1)
+    url = normalize_url(args[0]) if args else ""
+    filter_ = args[1] if len(args) == 2 else ""
     feed = dict(db.manager.get_feed(url) or {})
 
     if feed:
@@ -99,14 +101,14 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         if url:
             set_group_image(bot, url, chat)
 
-    db.manager.add_fchat(chat.id, feed["url"])
+    db.manager.add_fchat(chat.id, feed["url"], filter_)
     title = d.feed.get("title") or "-"
     desc = d.feed.get("description") or "-"
     text = f"Title: {title}\n\nURL: {feed['url']}\n\nDescription: {desc}"
 
     if d.entries and feed["latest"]:
         latest = tuple(map(int, feed["latest"].split()))
-        html = format_entries(get_old_entries(d.entries, latest)[:5])
+        html = format_entries(get_old_entries(d.entries, latest)[:15], filter_)
         replies.add(text=text, html=html, chat=chat)
     else:
         replies.add(text=text, chat=chat)

@@ -24,7 +24,8 @@ class DBManager:
                 """CREATE TABLE IF NOT EXISTS fchats
                 (gid INTEGER,
                 feed TEXT REFERENCES feeds(url) ON DELETE CASCADE,
-                 PRIMARY KEY(gid, feed))"""
+                filter TEXT,
+                PRIMARY KEY(gid, feed))"""
             )
 
     def close(self) -> None:
@@ -79,9 +80,9 @@ class DBManager:
         for row in self.db.execute(q, rows):
             yield row
 
-    def add_fchat(self, gid: int, url: str) -> None:
+    def add_fchat(self, gid: int, url: str, filter_: str) -> None:
         with self.db:
-            self.db.execute("INSERT INTO fchats VALUES (?,?)", (gid, url))
+            self.db.execute("INSERT INTO fchats VALUES (?,?,?)", (gid, url, filter_))
 
     def remove_fchat(self, gid: int, url: str = None) -> None:
         if url:
@@ -102,9 +103,11 @@ class DBManager:
             else:
                 self.db.execute("DELETE FROM fchats WHERE gid=?", (gid,))
 
-    def get_fchats(self, url: str) -> Iterator[int]:
-        for row in self.db.execute("SELECT gid FROM fchats WHERE feed=?", (url,)):
-            yield row[0]
+    def get_fchats(self, url: str) -> Iterator[tuple]:
+        for row in self.db.execute(
+            "SELECT gid, filter FROM fchats WHERE feed=?", (url,)
+        ):
+            yield row[0], row[1]
 
 
 manager: DBManager = None  # type: ignore
