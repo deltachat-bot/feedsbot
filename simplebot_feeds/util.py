@@ -72,7 +72,7 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
 
     full_html = format_entries(d.entries[:100], "")
     for gid, filter_ in fchats:
-        html = full_html if filter_ == "" else format_entries(d.entries[:100], filter_)
+        html = full_html if not filter_ else format_entries(d.entries[:100], filter_)
         if not html:
             continue
         replies = Replies(bot, logger=bot.logger)
