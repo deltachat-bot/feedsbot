@@ -35,7 +35,7 @@ def deltabot_init(bot: DeltaBot) -> None:
     get_default(bot, "max_feed_count", -1)
     prefix = get_default(bot, "cmd_prefix", "")
 
-    desc = f"Subscribe current chat to the given feed.\n\nExample:\n/{prefix}sub https://delta.chat/feed.xml"
+    desc = f"Subscribe current chat to the given feed.\n\nExample:\n/{prefix}sub https://delta.chat/feed.xml\n/{prefix}sub https://delta.chat/feed.xml keyword"
     bot.commands.register(func=sub_cmd, name=f"/{prefix}sub", help=desc)
     desc = f"Unsubscribe current chat from the given feed.\n\nExample:\n/{prefix}unsub https://delta.chat/feed.xml"
     bot.commands.register(func=unsub_cmd, name=f"/{prefix}unsub", help=desc)
@@ -104,7 +104,8 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
     db.manager.add_fchat(chat.id, feed["url"], filter_)
     title = d.feed.get("title") or "-"
     desc = d.feed.get("description") or "-"
-    text = f"Title: {title}\n\nURL: {feed['url']}\n\nDescription: {desc}"
+    url = f"{feed['url']} ({filter_})" if filter_ else feed["url"]
+    text = f"Title: {title}\n\nURL: {url}\n\nDescription: {desc}"
 
     if d.entries and feed["latest"]:
         latest = tuple(map(int, feed["latest"].split()))
