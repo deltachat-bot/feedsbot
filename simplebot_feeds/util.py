@@ -89,42 +89,46 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
 def format_entries(entries: list, filter_: str) -> str:
     entries_text = []
     for e in entries:
-        title = e.get("title") or ""
-        pub_date = e.get("published") or ""
-        desc = e.get("description") or ""
-        if not desc and e.get("content"):
-            for c in e.get("content"):
-                if c.get("type") == "text/html":
-                    desc += c["value"]
-
+        pub_date, title, desc = _parse_entry(e)
         if filter_ not in title and filter_ not in desc:
             continue
-
-        if title:
-            desc_soup = bs4.BeautifulSoup(desc, "html5lib")
-            for tag in desc_soup("br"):
-                tag.replace_with("\n")
-            title_soup = bs4.BeautifulSoup(title.rstrip("."), "html5lib")
-            if " ".join(desc_soup.get_text().split()).startswith(
-                " ".join(title_soup.get_text().split())
-            ):
-                title = ""
-
-        if title:
-            title = f'<a href="{e.get("link") or ""}"><h3>{title}</h3></a>'
-        elif pub_date:
-            pub_date = f'<a href="{e.get("link") or ""}">{pub_date}</a>'
-        elif desc:
-            desc = f'<a href="{e.get("link") or ""}">{desc}</a>'
-
-        if pub_date:
-            pub_date = f"<p>📆 <small><em>{pub_date}</em></small></p>"
-
         text = title + pub_date + desc
         if text:
             entries_text.append(text)
 
     return "<br/><hr/>".join(entries_text)
+
+
+def _parse_entry(entry) -> tuple:
+    title = entry.get("title") or ""
+    pub_date = entry.get("published") or ""
+    desc = entry.get("description") or ""
+    if not desc and entry.get("content"):
+        for c in entry.get("content"):
+            if c.get("type") == "text/html":
+                desc += c["value"]
+
+    if title:
+        desc_soup = bs4.BeautifulSoup(desc, "html5lib")
+        for tag in desc_soup("br"):
+            tag.replace_with("\n")
+        title_soup = bs4.BeautifulSoup(title.rstrip("."), "html5lib")
+        if " ".join(desc_soup.get_text().split()).startswith(
+            " ".join(title_soup.get_text().split())
+        ):
+            title = ""
+
+    if title:
+        title = f'<a href="{entry.get("link") or ""}"><h3>{title}</h3></a>'
+    elif pub_date:
+        pub_date = f'<a href="{entry.get("link") or ""}">{pub_date}</a>'
+    elif desc:
+        desc = f'<a href="{entry.get("link") or ""}">{desc}</a>'
+
+    if pub_date:
+        pub_date = f"<p>📆 <small><em>{pub_date}</em></small></p>"
+
+    return pub_date, title, desc
 
 
 def get_new_entries(entries: list, date: tuple) -> list:
@@ -251,8 +255,8 @@ def set_group_image(bot: DeltaBot, url: str, group: Chat) -> None:
                 prefix="group-image-",
                 suffix=get_img_ext(resp),
                 delete=False,
-            ) as file:
-                path = file.name
+            ) as temp_file:
+                path = temp_file.name
             with open(path, "wb") as file:
                 file.write(resp.content)
             try:

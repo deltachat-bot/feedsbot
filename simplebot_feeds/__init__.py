@@ -102,10 +102,8 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
             set_group_image(bot, url, chat)
 
     db.manager.add_fchat(chat.id, feed["url"], filter_)
-    title = d.feed.get("title") or "-"
-    desc = d.feed.get("description") or "-"
     url = f"{feed['url']} ({filter_})" if filter_ else feed["url"]
-    text = f"Title: {title}\n\nURL: {url}\n\nDescription: {desc}"
+    text = f"Title: {d.feed.get('title') or '-'}\n\nURL: {url}\n\nDescription: {d.feed.get('description') or '-'}"
 
     if d.entries and feed["latest"]:
         latest = tuple(map(int, feed["latest"].split()))
