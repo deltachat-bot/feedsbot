@@ -2,7 +2,7 @@
 -r requirements-test.txt
 black==21.10b0
 mypy==0.910
-isort==5.9.3
+isort==5.10.1
 pylint==2.12.1
 pylama==7.7.1
 types-pkg-resources==0.1.3
