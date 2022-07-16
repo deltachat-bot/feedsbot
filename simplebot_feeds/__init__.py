@@ -86,7 +86,7 @@ def sub_cmd(bot: DeltaBot, payload: str, message: Message, replies: Replies) -> 
         )
         db.manager.add_feed(url, feed["etag"], feed["modified"], feed["latest"])
 
-    if message.chat.is_group():
+    if message.chat.is_multiuser():
         chat = message.chat
         if chat.id in db.manager.get_fchat_ids(feed["url"]):
             replies.add(
@@ -126,7 +126,7 @@ def unsub_cmd(payload: str, message: Message, replies: Replies) -> None:
 
 def list_cmd(message: Message, replies: Replies) -> None:
     """List feed subscriptions in the group the command is sent."""
-    if message.chat.is_group():
+    if message.chat.is_multiuser():
         text = "\n\n".join(f["url"] for f in db.manager.get_feeds(message.chat.id))
         replies.add(text=text or "❌ No feed subscriptions in this chat")
     else:
