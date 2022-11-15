@@ -76,7 +76,11 @@ def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
             continue
         replies = Replies(bot, logger=bot.logger)
         try:
-            replies.add(html=html, chat=bot.get_chat(gid))
+            replies.add(
+                html=html,
+                chat=bot.get_chat(gid),
+                sender=d.feed.get("title") or f["url"],
+            )
             replies.send_reply_messages()
         except (ValueError, AttributeError):
             db.manager.remove_fchat(gid)
