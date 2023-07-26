@@ -33,15 +33,15 @@ Configuration
 
 By default the time (in seconds) between checks for feeds updates is 300 seconds (5 minutes), to change it::
 
-  simplebot -a bot@example.com db -s simplebot_feeds/delay 600
+  simplebot -a bot@example.com feeds --interval 600
 
 To limit the total number of feeds subscriptions the bot will allow (by default it is unlimited)::
 
-  simplebot -a bot@example.com db -s simplebot_feeds/max_feed_count 1000
+  simplebot -a bot@example.com feeds --max 1000
 
 If this plugin has collisions with commands from other plugins in your bot, you can set a command prefix like ``/feed_`` for all commands::
 
-  simplebot -a bot@example.com db -s simplebot_feeds/cmd_prefix feed_
+  simplebot -a bot@example.com feeds --prefix feed_
 
 User Guide
 ----------
