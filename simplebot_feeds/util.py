@@ -27,6 +27,7 @@ session.headers.update(
     }
 )
 session.request = functools.partial(session.request, timeout=15)  # type: ignore
+scope = __name__.split(".", maxsplit=1)[0]
 
 
 def check_feeds(bot: DeltaBot) -> None:
@@ -163,12 +164,15 @@ def get_latest_date(entries: list) -> Optional[str]:
 
 
 def get_default(bot: DeltaBot, key: str, value=None) -> str:
-    scope = __name__.split(".", maxsplit=1)[0]
     val = bot.get(key, scope=scope)
     if val is None and value is not None:
         bot.set(key, value, scope=scope)
         val = value
     return val
+
+
+def set_config(bot: DeltaBot, key: str, value) -> None:
+    bot.set(key, value, scope=scope)
 
 
 def init_db(bot: DeltaBot) -> None:

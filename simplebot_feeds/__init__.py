@@ -7,6 +7,7 @@ from deltachat import Chat, Contact, Message
 from pkg_resources import DistributionNotFound, get_distribution
 from simplebot.bot import DeltaBot, Replies
 
+from .subcommands import def_interval, feeds
 from .util import (
     check_feeds,
     db,
@@ -28,10 +29,15 @@ except DistributionNotFound:
 
 
 @simplebot.hookimpl
+def deltabot_init_parser(parser) -> None:
+    parser.add_subcommand(feeds)
+
+
+@simplebot.hookimpl
 def deltabot_init(bot: DeltaBot) -> None:
     init_db(bot)
 
-    get_default(bot, "delay", 60 * 5)
+    get_default(bot, "delay", def_interval)
     get_default(bot, "max_feed_count", -1)
     prefix = get_default(bot, "cmd_prefix", "")
 
