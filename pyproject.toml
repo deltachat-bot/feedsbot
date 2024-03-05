@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "feedsbot"
+description = "Subscribe to RSS/Atom feeds in Delta Chat"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+keywords = ["deltachat", "bot", "feeds", "rss", "atom"]
+authors = [
+  {name = "adbenitez", email = "adb@merlinux.eu"},
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "deltabot-cli>=3.0.0,<4.0",
+    "feedparser==6.0.10",
+    "requests>=2.28.1",
+    "beautifulsoup4>=4.11.1",
+    "html5lib>=1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "mypy",
+  "isort",
+  "pylint",
+  "pylama",
+  "pytest",
+  "types-requests",
+]
+
+[project.scripts]
+feedsbot = "feedsbot:main"
+
+[tool.setuptools_scm]
+# can be empty if no extra settings are needed, presence enables setuptools_scm
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+ignore_missing_imports = "True"

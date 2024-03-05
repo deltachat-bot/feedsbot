@@ -3,9 +3,7 @@
 import datetime
 import functools
 import mimetypes
-import os
 import re
-import sqlite3
 import time
 from tempfile import NamedTemporaryFile
 from typing import Optional
@@ -13,82 +11,104 @@ from typing import Optional
 import bs4
 import feedparser
 import requests
-from deltachat import Chat
+from deltabot_cli import Bot, JsonRpcError
 from feedparser.datetimes import _parse_date
 from feedparser.exceptions import CharacterEncodingOverride
-from simplebot.bot import DeltaBot, Replies
+from sqlalchemy import delete, select, update
 
-from simplebot_feeds import db
+from .orm import Fchat, Feed, session_scope
 
-session = requests.Session()
-session.headers.update(
+www = requests.Session()
+www.headers.update(
     {
         "user-agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0"
     }
 )
-session.request = functools.partial(session.request, timeout=15)  # type: ignore
-scope = __name__.split(".", maxsplit=1)[0]
+www.request = functools.partial(www.request, timeout=15)  # type: ignore
 
 
-def check_feeds(bot: DeltaBot) -> None:
+def check_feeds(bot: Bot, interval: int) -> None:
     while True:
         bot.logger.debug("Checking feeds")
-        now = time.time()
-        for f in db.manager.get_feeds():
-            bot.logger.debug("Checking feed: %s", f["url"])
+        starting_time = time.time()
+        with session_scope() as session:
+            feeds = session.execute(select(Feed)).scalars().all()
+        for feed in feeds:
+            bot.logger.debug("Checking feed: %s", feed.url)
             try:
-                _check_feed(bot, f)
-                if f["errors"] != 0:
-                    db.manager.set_feed_errors(f["url"], 0)
+                _check_feed(bot, feed)
+                if feed.errors != 0:
+                    with session_scope() as session:
+                        stmt = update(Feed).where(Feed.url == feed.url).values(errors=0)
+                        session.execute(stmt)
             except Exception as err:
                 bot.logger.exception(err)
-                if f["errors"] < 50:
-                    db.manager.set_feed_errors(f["url"], f["errors"] + 1)
+                if feed.errors < 50:
+                    with session_scope() as session:
+                        stmt = update(Feed).where(Feed.url == feed.url)
+                        session.execute(stmt.values(errors=feed.errors + 1))
                     continue
-                for gid in db.manager.get_fchat_ids(f["url"]):
+
+                with session_scope() as session:
+                    stmt = select(Fchat.accid, Fchat.gid).where(
+                        Fchat.feed_url == feed.url
+                    )
+                    fchats = session.execute(stmt).scalars().all()
+                    session.execute(delete(Feed).where(Feed.url == feed.url))
+                reply = {
+                    "text": f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
+                }
+                for accid, gid in fchats:
                     try:
-                        replies = Replies(bot, logger=bot.logger)
-                        replies.add(
-                            text=f"❌ Due to errors, this chat was unsubscribed from feed: {f['url']}",
-                            chat=bot.get_chat(gid),
-                        )
-                        replies.send_reply_messages()
-                    except (ValueError, AttributeError):
+                        bot.rpc.send_msg(accid, gid, reply)
+                    except JsonRpcError:
                         pass
-                db.manager.remove_feed(f["url"])
         bot.logger.debug("Done checking feeds")
-        delay = int(get_default(bot, "delay")) - time.time() + now
+        delay = interval - (time.time() - starting_time)
         if delay > 0:
             time.sleep(delay)
 
 
-def _check_feed(bot: DeltaBot, f: sqlite3.Row) -> None:
-    d = parse_feed(f["url"], etag=f["etag"], modified=f["modified"])
+def _check_feed(bot: Bot, feed: Feed) -> None:
+    d = parse_feed(feed.url, etag=feed.etag, modified=feed.modified)
 
-    if d.entries and f["latest"]:
-        d.entries = get_new_entries(d.entries, tuple(map(int, f["latest"].split())))
+    if d.entries and feed.latest:
+        d.entries = get_new_entries(d.entries, tuple(map(int, feed.latest.split())))
     if not d.entries:
         return
 
     full_html = format_entries(d.entries[:100], "")
-    for gid, filter_ in db.manager.get_fchats(f["url"]):
-        html = full_html if not filter_ else format_entries(d.entries[:100], filter_)
-        if not html:
-            continue
-        replies = Replies(bot, logger=bot.logger)
-        try:
-            replies.add(
-                html=html,
-                chat=bot.get_chat(gid),
-                sender=d.feed.get("title") or f["url"],
-            )
-            replies.send_reply_messages()
-        except (ValueError, AttributeError):
-            db.manager.remove_fchat(gid)
+    with session_scope() as session:
+        stmt = select(Fchat).where(Fchat.feed_url == feed.url)
+        fchats = session.execute(stmt).scalars().all()
+        if not fchats:
+            session.delete(feed)
+            return
 
-    latest = get_latest_date(d.entries) or f["latest"]
+    for fchat in fchats:
+        if fchat.filter:
+            html = format_entries(d.entries[:100], fchat.filter)
+            if not html:
+                continue
+        else:
+            html = full_html
+        reply = {"html": html, "OverrideSenderName": d.feed.get("title") or feed.url}
+        try:
+            bot.rpc.send_msg(fchat.accid, fchat.gid, reply)
+        except JsonRpcError:
+            with session_scope() as session:
+                stmt = delete(Fchat).where(
+                    Fchat.accid == fchat.accid, Fchat.gid == fchat.gid
+                )
+                session.execute(stmt)
+
+    latest = get_latest_date(d.entries) or feed.latest
     modified = d.get("modified") or d.get("updated")
-    db.manager.update_feed(f["url"], d.get("etag"), modified, latest)
+    with session_scope() as session:
+        stmt = update(Feed).where(Feed.url == feed.url)
+        session.execute(
+            stmt.values(etag=d.get("etag"), modified=modified, latest=latest)
+        )
 
 
 def format_entries(entries: list, filter_: str) -> str:
@@ -163,29 +183,8 @@ def get_latest_date(entries: list) -> Optional[str]:
     return " ".join(map(str, max(dates))) if dates else None
 
 
-def get_default(bot: DeltaBot, key: str, value=None) -> str:
-    val = bot.get(key, scope=scope)
-    if val is None and value is not None:
-        bot.set(key, value, scope=scope)
-        val = value
-    return val
-
-
-def set_config(bot: DeltaBot, key: str, value) -> None:
-    bot.set(key, value, scope=scope)
-
-
-def init_db(bot: DeltaBot) -> None:
-    path = os.path.join(
-        os.path.dirname(bot.account.db_path), __name__.split(".", maxsplit=1)[0]
-    )
-    if not os.path.exists(path):
-        os.makedirs(path)
-    db.manager = db.DBManager(os.path.join(path, "sqlite.db"))
-
-
 def parse_feed(
-    url: str, etag: str = None, modified: tuple = None
+    url: str, etag: Optional[str] = None, modified: Optional[tuple] = None
 ) -> feedparser.FeedParserDict:
     headers = {"A-IM": "feed", "Accept-encoding": "gzip, deflate"}
     if etag:
@@ -219,7 +218,7 @@ def parse_feed(
             modified[4],
             modified[5],
         )
-    with session.get(url, headers=headers) as resp:
+    with www.get(url, headers=headers) as resp:
         resp.raise_for_status()
         dict_ = feedparser.parse(resp.text)
     bozo_exception = dict_.get("bozo_exception", ValueError("Invalid feed"))
@@ -255,19 +254,13 @@ def normalize_url(url: str) -> str:
     return url.rstrip("/")
 
 
-def set_group_image(bot: DeltaBot, url: str, group: Chat) -> None:
-    with session.get(url) as resp:
+def set_group_image(bot: Bot, url: str, accid: int, chatid: int) -> None:
+    with www.get(url) as resp:
         if resp.status_code < 400 or resp.status_code >= 600:
-            with NamedTemporaryFile(
-                dir=bot.account.get_blobdir(),
-                prefix="group-image-",
-                suffix=get_img_ext(resp),
-                delete=False,
-            ) as temp_file:
-                path = temp_file.name
-            with open(path, "wb") as file:
-                file.write(resp.content)
-            try:
-                group.set_profile_image(path)
-            except ValueError as ex:
-                bot.logger.exception(ex)
+            with NamedTemporaryFile(suffix=get_img_ext(resp)) as temp_file:
+                with open(temp_file.name, "wb") as file:
+                    file.write(resp.content)
+                try:
+                    bot.rpc.set_chat_profile_image(accid, chatid, temp_file.name)
+                except JsonRpcError as ex:
+                    bot.logger.exception(ex)
