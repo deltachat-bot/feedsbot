@@ -2,7 +2,9 @@
 
 import datetime
 import functools
+import logging
 import mimetypes
+import os
 import re
 import time
 from tempfile import NamedTemporaryFile
@@ -264,3 +266,9 @@ def set_group_image(bot: Bot, url: str, accid: int, chatid: int) -> None:
                     bot.rpc.set_chat_profile_image(accid, chatid, temp_file.name)
                 except JsonRpcError as ex:
                     bot.logger.exception(ex)
+
+
+def get_log_level(name: str) -> int:
+    """Get log level from environment variables. Defaults to INFO if not set."""
+    level = os.getenv(f"{name.upper()}_LOG", "info").upper()
+    return int(getattr(logging, level))

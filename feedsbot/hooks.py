@@ -22,13 +22,14 @@ from .util import (
     check_feeds,
     format_entries,
     get_latest_date,
+    get_log_level,
     get_old_entries,
     normalize_url,
     parse_feed,
     set_group_image,
 )
 
-cli = BotCli("feedsbot")
+cli = BotCli("feedsbot", log_level=get_log_level("feedsbot"))
 cli.add_generic_option(
     "--interval",
     type=int,
