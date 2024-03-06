@@ -89,7 +89,6 @@ def log_event(bot: Bot, accid: int, event: AttrDict) -> None:
 
 @cli.on(events.MemberListChanged)
 def on_memberlist_change(bot: Bot, accid: int, event: AttrDict) -> None:
-    bot.logger.info(f"memberlist changed!!!! {event}")
     if event.member_added:
         return
     chat_id = event.msg.chat_id
@@ -98,6 +97,9 @@ def on_memberlist_change(bot: Bot, accid: int, event: AttrDict) -> None:
         with session_scope() as session:
             stmt = delete(Fchat).where(Fchat.accid == accid, Fchat.gid == chat_id)
             session.execute(stmt)
+            bot.logger.debug(
+                f"group(id={chat_id}) subscriptions were deleted due to member-removed event"
+            )
 
 
 @cli.on(events.NewMessage(is_info=False))

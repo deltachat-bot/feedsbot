@@ -31,18 +31,18 @@ www.request = functools.partial(www.request, timeout=15)  # type: ignore
 def check_feeds(bot: Bot, interval: int, pool_size: int) -> None:
     with ThreadPool(pool_size) as pool:
         while True:
-            bot.logger.debug("Starting to check feeds")
+            bot.logger.info("Starting to check feeds")
             starting_time = time.time()
             with session_scope() as session:
                 feeds = session.execute(select(Feed)).scalars().all()
-            bot.logger.debug(f"There are {len(feeds)} feeds to check")
+            bot.logger.info(f"There are {len(feeds)} feeds to check")
             for _ in pool.imap_unordered(lambda f: _check_feed_task(bot, f), feeds):
                 pass
             took = time.time() - starting_time
-            bot.logger.debug(f"Done checking {len(feeds)} feeds after {took} seconds")
+            bot.logger.info(f"Done checking {len(feeds)} feeds after {took} seconds")
             delay = interval - took
             if delay > 0:
-                bot.logger.debug(f"Sleeping for {delay} seconds")
+                bot.logger.info(f"Sleeping for {delay} seconds")
                 time.sleep(delay)
 
 
