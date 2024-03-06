@@ -6,6 +6,7 @@ import mimetypes
 import re
 import time
 from multiprocessing.pool import ThreadPool
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
@@ -28,22 +29,36 @@ www.headers.update(
 www.request = functools.partial(www.request, timeout=15)  # type: ignore
 
 
-def check_feeds(bot: Bot, interval: int, pool_size: int) -> None:
+def check_feeds(bot: Bot, interval: int, pool_size: int, app_dir: Path) -> None:
+    lastcheck_path = app_dir / "lastcheck.txt"
+    lastcheck = 0.0
+    if lastcheck_path.exists():
+        with lastcheck_path.open(encoding="utf-8") as lastcheck_file:
+            try:
+                lastcheck = float(lastcheck_file.read())
+            except (ValueError, TypeError):
+                pass
+    took = max(time.time() - lastcheck, 0)
+
     with ThreadPool(pool_size) as pool:
         while True:
-            bot.logger.info("Starting to check feeds")
-            starting_time = time.time()
-            with session_scope() as session:
-                feeds = session.execute(select(Feed)).scalars().all()
-            bot.logger.info(f"There are {len(feeds)} feeds to check")
-            for _ in pool.imap_unordered(lambda f: _check_feed_task(bot, f), feeds):
-                pass
-            took = time.time() - starting_time
-            bot.logger.info(f"Done checking {len(feeds)} feeds after {took} seconds")
             delay = interval - took
             if delay > 0:
-                bot.logger.info(f"Sleeping for {delay} seconds")
+                bot.logger.info(f"[WORKER] Sleeping for {delay:.1f} seconds")
                 time.sleep(delay)
+            bot.logger.info("[WORKER] Starting to check feeds")
+            lastcheck = time.time()
+            with lastcheck_path.open("w", encoding="utf-8") as lastcheck_file:
+                lastcheck_file.write(str(lastcheck))
+            with session_scope() as session:
+                feeds = session.execute(select(Feed)).scalars().all()
+            bot.logger.info(f"[WORKER] There are {len(feeds)} feeds to check")
+            for _ in pool.imap_unordered(lambda f: _check_feed_task(bot, f), feeds):
+                pass
+            took = time.time() - lastcheck
+            bot.logger.info(
+                f"[WORKER] Done checking {len(feeds)} feeds after {took:.1f} seconds"
+            )
 
 
 def _check_feed_task(bot: Bot, feed: Feed):

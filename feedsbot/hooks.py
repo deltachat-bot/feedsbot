@@ -1,7 +1,7 @@
 """Event Hooks"""
 
-import os
 from argparse import Namespace
+from pathlib import Path
 from threading import Thread
 
 from deltabot_cli import (
@@ -65,10 +65,12 @@ def on_start(bot: Bot, args: Namespace) -> None:
     bot.add_hook(
         (lambda b, a, e: _sub(args.max, b, a, e)), events.NewMessage(command="/sub")
     )
-    path = os.path.join(args.config_dir, "sqlite.db")
-    init(f"sqlite:///{path}")
+    config_dir = Path(args.config_dir)
+    init(f"sqlite:///{config_dir / 'sqlite.db'}")
     Thread(
-        target=check_feeds, args=(bot, args.interval, args.parallel), daemon=True
+        target=check_feeds,
+        args=(bot, args.interval, args.parallel, config_dir),
+        daemon=True,
     ).start()
 
 
