@@ -34,13 +34,13 @@ cli.add_generic_option(
     "--interval",
     type=int,
     default=60 * 5,
-    help="how many seconds to sleep before checking the feeds again (default: %(default)s",
+    help="how many seconds to sleep before checking the feeds again (default: %(default)s)",
 )
 cli.add_generic_option(
     "--parallel",
     type=int,
     default=10,
-    help="how many feeds to check in parallel (default: %(default)s",
+    help="how many feeds to check in parallel (default: %(default)s)",
 )
 cli.add_generic_option(
     "--max",
