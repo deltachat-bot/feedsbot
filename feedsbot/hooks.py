@@ -22,14 +22,13 @@ from .util import (
     check_feeds,
     format_entries,
     get_latest_date,
-    get_log_level,
     get_old_entries,
     normalize_url,
     parse_feed,
     set_group_image,
 )
 
-cli = BotCli("feedsbot", log_level=get_log_level("feedsbot"))
+cli = BotCli("feedsbot")
 cli.add_generic_option(
     "--interval",
     type=int,
@@ -76,7 +75,7 @@ def on_start(bot: Bot, args: Namespace) -> None:
 @cli.on(events.RawEvent)
 def log_event(bot: Bot, accid: int, event: AttrDict) -> None:
     if event.kind == EventType.INFO:
-        bot.logger.info(event.msg)
+        bot.logger.debug(event.msg)
     elif event.kind == EventType.WARNING:
         bot.logger.warning(event.msg)
     elif event.kind == EventType.ERROR:
