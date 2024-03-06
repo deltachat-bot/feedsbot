@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 import time
+from multiprocessing.pool import ThreadPool
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
@@ -29,46 +30,52 @@ www.headers.update(
 www.request = functools.partial(www.request, timeout=15)  # type: ignore
 
 
-def check_feeds(bot: Bot, interval: int) -> None:
-    while True:
-        bot.logger.debug("Checking feeds")
-        starting_time = time.time()
-        with session_scope() as session:
-            feeds = session.execute(select(Feed)).scalars().all()
-        for feed in feeds:
-            bot.logger.debug("Checking feed: %s", feed.url)
-            try:
-                _check_feed(bot, feed)
-                if feed.errors != 0:
-                    with session_scope() as session:
-                        stmt = update(Feed).where(Feed.url == feed.url).values(errors=0)
-                        session.execute(stmt)
-            except Exception as err:
-                bot.logger.exception(err)
-                if feed.errors < 50:
-                    with session_scope() as session:
-                        stmt = update(Feed).where(Feed.url == feed.url)
-                        session.execute(stmt.values(errors=feed.errors + 1))
-                    continue
+def check_feeds(bot: Bot, interval: int, pool_size: int) -> None:
+    with ThreadPool(pool_size) as pool:
+        while True:
+            bot.logger.debug("Starting to check feeds")
+            starting_time = time.time()
+            with session_scope() as session:
+                feeds = session.execute(select(Feed)).scalars().all()
+            bot.logger.debug(f"There are {len(feeds)} feeds to check")
+            for _ in pool.imap_unordered(lambda f: _check_feed_task(bot, f), feeds):
+                pass
+            took = time.time() - starting_time
+            bot.logger.debug(f"Done checking {len(feeds)} feeds after {took} seconds")
+            delay = interval - took
+            if delay > 0:
+                bot.logger.debug(f"Sleeping for {delay} seconds")
+                time.sleep(delay)
 
-                with session_scope() as session:
-                    stmt = select(Fchat.accid, Fchat.gid).where(
-                        Fchat.feed_url == feed.url
-                    )
-                    fchats = session.execute(stmt).scalars().all()
-                    session.execute(delete(Feed).where(Feed.url == feed.url))
-                reply = {
-                    "text": f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
-                }
-                for accid, gid in fchats:
-                    try:
-                        bot.rpc.send_msg(accid, gid, reply)
-                    except JsonRpcError:
-                        pass
-        bot.logger.debug("Done checking feeds")
-        delay = interval - (time.time() - starting_time)
-        if delay > 0:
-            time.sleep(delay)
+
+def _check_feed_task(bot: Bot, feed: Feed):
+    bot.logger.debug(f"Checking feed: {feed.url}")
+    try:
+        _check_feed(bot, feed)
+        if feed.errors != 0:
+            with session_scope() as session:
+                stmt = update(Feed).where(Feed.url == feed.url).values(errors=0)
+                session.execute(stmt)
+    except Exception as err:
+        bot.logger.exception(err)
+        if feed.errors < 50:
+            with session_scope() as session:
+                stmt = update(Feed).where(Feed.url == feed.url)
+                session.execute(stmt.values(errors=feed.errors + 1))
+        else:
+            with session_scope() as session:
+                stmt = select(Fchat.accid, Fchat.gid).where(Fchat.feed_url == feed.url)
+                fchats = session.execute(stmt).scalars().all()
+                session.execute(delete(Feed).where(Feed.url == feed.url))
+            reply = {
+                "text": f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
+            }
+            for accid, gid in fchats:
+                try:
+                    bot.rpc.send_msg(accid, gid, reply)
+                except JsonRpcError:
+                    pass
+    bot.logger.debug(f"Done checking feed: {feed.url}")
 
 
 def _check_feed(bot: Bot, feed: Feed) -> None:

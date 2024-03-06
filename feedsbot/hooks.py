@@ -37,6 +37,12 @@ cli.add_generic_option(
     help="how many seconds to sleep before checking the feeds again (default: %(default)s",
 )
 cli.add_generic_option(
+    "--parallel",
+    type=int,
+    default=10,
+    help="how many feeds to check in parallel (default: %(default)s",
+)
+cli.add_generic_option(
     "--max",
     type=int,
     default=-1,
@@ -62,7 +68,9 @@ def on_start(bot: Bot, args: Namespace) -> None:
     )
     path = os.path.join(args.config_dir, "sqlite.db")
     init(f"sqlite:///{path}")
-    Thread(target=check_feeds, args=(bot, args.interval), daemon=True).start()
+    Thread(
+        target=check_feeds, args=(bot, args.interval, args.parallel), daemon=True
+    ).start()
 
 
 @cli.on(events.RawEvent)
