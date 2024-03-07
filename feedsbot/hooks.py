@@ -15,6 +15,7 @@ from deltabot_cli import (
     is_not_known_command,
 )
 from feedparser import FeedParserDict
+from rich.logging import RichHandler
 from sqlalchemy import delete, func, select
 
 from .orm import Fchat, Feed, init, session_scope
@@ -47,10 +48,18 @@ cli.add_generic_option(
     default=-1,
     help="the maximum number of feeds the bot will subscribe to before rejecting new unknown feeds, by default: -1 (infinite)",
 )
+cli.add_generic_option(
+    "--no-time",
+    help="do not display date timestamp in log messages",
+    action="store_false",
+)
 
 
 @cli.on_init
-def on_init(bot: Bot, _args: Namespace) -> None:
+def on_init(bot: Bot, args: Namespace) -> None:
+    bot.logger.handlers = [
+        RichHandler(show_path=False, omit_repeated_times=False, show_time=args.no_time)
+    ]
     for accid in bot.rpc.get_all_account_ids():
         if not bot.rpc.get_config(accid, "displayname"):
             bot.rpc.set_config(accid, "displayname", "FeedsBot")
