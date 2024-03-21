@@ -6,7 +6,6 @@ import mimetypes
 import re
 import time
 from multiprocessing.pool import ThreadPool
-from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
@@ -29,15 +28,9 @@ www.headers.update(
 www.request = functools.partial(www.request, timeout=15)  # type: ignore
 
 
-def check_feeds(bot: Bot, interval: int, pool_size: int, app_dir: Path) -> None:
-    lastcheck_path = app_dir / "lastcheck.txt"
-    lastcheck = 0.0
-    if lastcheck_path.exists():
-        with lastcheck_path.open(encoding="utf-8") as lastcheck_file:
-            try:
-                lastcheck = float(lastcheck_file.read())
-            except (ValueError, TypeError):
-                pass
+def check_feeds(bot: Bot, interval: int, pool_size: int) -> None:
+    lastcheck_key = "ui.feedsbot.lastcheck"
+    lastcheck = float(bot.rpc.get_config(lastcheck_key) or 0)
     took = max(time.time() - lastcheck, 0)
 
     with ThreadPool(pool_size) as pool:
@@ -48,8 +41,7 @@ def check_feeds(bot: Bot, interval: int, pool_size: int, app_dir: Path) -> None:
                 time.sleep(delay)
             bot.logger.info("[WORKER] Starting to check feeds")
             lastcheck = time.time()
-            with lastcheck_path.open("w", encoding="utf-8") as lastcheck_file:
-                lastcheck_file.write(str(lastcheck))
+            bot.rpc.set_config(lastcheck_key, str(lastcheck))
             with session_scope() as session:
                 feeds = session.execute(select(Feed)).scalars().all()
             bot.logger.info(f"[WORKER] There are {len(feeds)} feeds to check")
