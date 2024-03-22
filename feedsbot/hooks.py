@@ -78,7 +78,7 @@ def on_start(bot: Bot, args: Namespace) -> None:
     init(f"sqlite:///{config_dir / 'sqlite.db'}")
     Thread(
         target=check_feeds,
-        args=(bot, args.interval, args.parallel),
+        args=(bot, args.interval, args.parallel, config_dir),
         daemon=True,
     ).start()
 
