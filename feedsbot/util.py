@@ -70,7 +70,7 @@ def _check_feed_task(bot: Bot, feed: Feed):
         else:
             with session_scope() as session:
                 stmt = select(Fchat.accid, Fchat.gid).where(Fchat.feed_url == feed.url)
-                fchats = session.execute(stmt).scalars().all()
+                fchats = session.execute(stmt).all()
                 session.execute(delete(Feed).where(Feed.url == feed.url))
             reply = {
                 "text": f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
