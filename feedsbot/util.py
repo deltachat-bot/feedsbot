@@ -13,7 +13,7 @@ from typing import Optional
 import bs4
 import feedparser
 import requests
-from deltabot_cli import Bot, JsonRpcError
+from deltachat2 import Bot, JsonRpcError, MsgData
 from feedparser.datetimes import _parse_date
 from feedparser.exceptions import CharacterEncodingOverride
 from sqlalchemy import delete, select, update
@@ -80,9 +80,9 @@ def _check_feed_task(bot: Bot, feed: Feed):
                 stmt = select(Fchat.accid, Fchat.gid).where(Fchat.feed_url == feed.url)
                 fchats = session.execute(stmt).all()
                 session.execute(delete(Feed).where(Feed.url == feed.url))
-            reply = {
-                "text": f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
-            }
+            reply = MsgData(
+                text=f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
+            )
             for accid, gid in fchats:
                 try:
                     bot.rpc.send_msg(accid, gid, reply)
@@ -114,7 +114,7 @@ def _check_feed(bot: Bot, feed: Feed) -> None:
                 continue
         else:
             html = full_html
-        reply = {"html": html, "OverrideSenderName": d.feed.get("title") or feed.url}
+        reply = MsgData(html=html, override_sender_name=d.feed.get("title") or feed.url)
         try:
             bot.rpc.send_msg(fchat.accid, fchat.gid, reply)
         except JsonRpcError:

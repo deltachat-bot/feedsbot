@@ -4,20 +4,23 @@ from argparse import Namespace
 from pathlib import Path
 from threading import Thread
 
-from deltabot_cli import (
-    AttrDict,
+from deltabot_cli import BotCli
+from deltachat2 import (
     Bot,
-    BotCli,
     ChatType,
+    CoreEvent,
     EventType,
+    MsgData,
+    NewMsgEvent,
     SpecialContactId,
+    SystemMessageType,
     events,
-    is_not_known_command,
 )
 from feedparser import FeedParserDict
 from rich.logging import RichHandler
 from sqlalchemy import delete, func, select
 
+from ._version import __version__
 from .orm import Fchat, Feed, init, session_scope
 from .util import (
     check_feeds,
@@ -30,6 +33,7 @@ from .util import (
 )
 
 cli = BotCli("feedsbot")
+cli.add_generic_option("-v", "--version", action="version", version=__version__)
 cli.add_generic_option(
     "--interval",
     type=int,
@@ -84,23 +88,26 @@ def on_start(bot: Bot, args: Namespace) -> None:
 
 
 @cli.on(events.RawEvent)
-def log_event(bot: Bot, accid: int, event: AttrDict) -> None:
+def log_event(bot: Bot, accid: int, event: CoreEvent) -> None:
     if event.kind == EventType.INFO:
         bot.logger.debug(event.msg)
     elif event.kind == EventType.WARNING:
         bot.logger.warning(event.msg)
     elif event.kind == EventType.ERROR:
         bot.logger.error(event.msg)
+    elif event.kind == EventType.MSG_DELIVERED:
+        bot.rpc.delete_messages(accid, [event.msg_id])
     elif event.kind == EventType.SECUREJOIN_INVITER_PROGRESS:
         if event.progress == 1000:
-            bot.logger.debug("QR scanned by contact id=%s", event.contact_id)
-            chatid = bot.rpc.create_chat_by_contact_id(accid, event.contact_id)
-            send_help(bot, accid, chatid)
+            if not bot.rpc.get_contact(accid, event.contact_id).is_bot:
+                bot.logger.debug("QR scanned by contact id=%s", event.contact_id)
+                chatid = bot.rpc.create_chat_by_contact_id(accid, event.contact_id)
+                send_help(bot, accid, chatid)
 
 
-@cli.on(events.MemberListChanged)
-def on_memberlist_change(bot: Bot, accid: int, event: AttrDict) -> None:
-    if event.member_added:
+@cli.on(events.NewMessage(is_info=True))
+def on_memberlist_change(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    if event.msg.system_message_type != SystemMessageType.MEMBER_REMOVED_FROM_GROUP:
         return
     chat_id = event.msg.chat_id
     chat = bot.rpc.get_full_chat_by_id(accid, chat_id)
@@ -113,14 +120,16 @@ def on_memberlist_change(bot: Bot, accid: int, event: AttrDict) -> None:
             )
 
 
+@cli.after(events.NewMessage)
+def delete_msgs(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    bot.rpc.delete_messages(accid, [event.msg.id])
+
+
 @cli.on(events.NewMessage(is_info=False))
-def markseen_commands(bot: Bot, accid: int, event: AttrDict) -> None:
-    if not is_not_known_command(bot, event):
-        bot.rpc.markseen_msgs(accid, [event.msg.id])
+def on_message(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    if bot.has_command(event.command):
+        return
 
-
-@cli.on(events.NewMessage(is_info=False, func=is_not_known_command))
-def on_unknown_cmd(bot: Bot, accid: int, event: AttrDict) -> None:
     msg = event.msg
     chat = bot.rpc.get_basic_chat_info(accid, msg.chat_id)
     if chat.chat_type == ChatType.SINGLE:
@@ -129,7 +138,8 @@ def on_unknown_cmd(bot: Bot, accid: int, event: AttrDict) -> None:
 
 
 @cli.on(events.NewMessage(command="/help"))
-def _help(bot: Bot, accid: int, event: AttrDict) -> None:
+def _help(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    bot.rpc.markseen_msgs(accid, [event.msg.id])
     send_help(bot, accid, event.msg.chat_id)
 
 
@@ -154,10 +164,11 @@ def send_help(bot: Bot, accid: int, chat_id: int) -> None:
 
 Add me to a group then you can use the /sub command there to subscribe the group to RSS/Atom feeds.
     """
-    bot.rpc.send_msg(accid, chat_id, {"text": text})
+    bot.rpc.send_msg(accid, chat_id, MsgData(text=text))
 
 
-def _sub(max_feed_count: int, bot: Bot, accid: int, event: AttrDict) -> None:
+def _sub(max_feed_count: int, bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    bot.rpc.markseen_msgs(accid, [event.msg.id])
     chat = bot.rpc.get_basic_chat_info(accid, event.msg.chat_id)
     args = event.payload.split(maxsplit=1)
     url = normalize_url(args[0]) if args else ""
@@ -169,10 +180,10 @@ def _sub(max_feed_count: int, bot: Bot, accid: int, event: AttrDict) -> None:
             try:
                 d = parse_feed(feed.url)
             except Exception as ex:
-                reply = {
-                    "text": "❌ Invalid feed url.",
-                    "quotedMessageId": event.msg.id,
-                }
+                reply = MsgData(
+                    text="❌ Invalid feed url.",
+                    quoted_message_id=event.msg.id,
+                )
                 bot.rpc.send_msg(accid, event.msg.chat_id, reply)
                 bot.logger.exception("Invalid feed %s: %s", url, ex)
                 return
@@ -181,7 +192,7 @@ def _sub(max_feed_count: int, bot: Bot, accid: int, event: AttrDict) -> None:
                 Feed
             )
             if 0 <= max_feed_count <= session.execute(stmt).scalar_one():
-                reply = {"text": "❌ Sorry, maximum number of feeds reached"}
+                reply = MsgData(text="❌ Sorry, maximum number of feeds reached")
                 bot.rpc.send_msg(accid, event.msg.chat_id, reply)
                 return
             try:
@@ -194,10 +205,10 @@ def _sub(max_feed_count: int, bot: Bot, accid: int, event: AttrDict) -> None:
                 )
                 session.add(feed)
             except Exception as ex:
-                reply = {
-                    "text": "❌ Invalid feed url.",
-                    "quotedMessageId": event.msg.id,
-                }
+                reply = MsgData(
+                    text="❌ Invalid feed url.",
+                    quoted_message_id=event.msg.id,
+                )
                 bot.rpc.send_msg(accid, event.msg.chat_id, reply)
                 bot.logger.exception("Invalid feed %s: %s", url, ex)
                 return
@@ -216,19 +227,19 @@ def _sub(max_feed_count: int, bot: Bot, accid: int, event: AttrDict) -> None:
                 Fchat.accid == accid, Fchat.gid == chat.id, Fchat.feed_url == feed.url
             )
             if session.execute(stmt).scalar():
-                reply = {
-                    "text": "❌ Chat already subscribed to that feed.",
-                    "quotedMessageId": event.msg.id,
-                }
+                reply = MsgData(
+                    text="❌ Chat already subscribed to that feed.",
+                    quoted_message_id=event.msg.id,
+                )
                 bot.rpc.send_msg(accid, chat_id, reply)
                 return
 
         session.add(Fchat(accid=accid, gid=chat_id, feed_url=feed.url, filter=filter_))
 
-    reply = {"text": _format_feed_info(d, feed.url, filter_)}
+    reply = MsgData(text=_format_feed_info(d, feed.url, filter_))
 
     if d.entries and feed.latest:
-        reply["html"] = format_entries(
+        reply.html = format_entries(
             get_old_entries(d.entries, tuple(map(int, feed.latest.split())))[:15],
             filter_,
         )
@@ -244,7 +255,8 @@ def _format_feed_info(d: FeedParserDict, url: str, filter_: str) -> str:
 
 
 @cli.on(events.NewMessage(command="/unsub"))
-def _unsub(bot: Bot, accid: int, event: AttrDict) -> None:
+def _unsub(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    bot.rpc.markseen_msgs(accid, [event.msg.id])
     if not event.payload:
         _list(bot, accid, event)
         return
@@ -263,18 +275,19 @@ def _unsub(bot: Bot, accid: int, event: AttrDict) -> None:
             fchat = session.execute(stmt).scalar()
         if fchat:
             session.delete(fchat)
-            reply = {"text": f"Chat unsubscribed from: {feed.url}"}
+            reply = MsgData(text=f"Chat unsubscribed from: {feed.url}")
             bot.rpc.send_msg(accid, msg.chat_id, reply)
         else:
-            reply = {
-                "text": "❌ This chat is not subscribed to that feed",
-                "quotedMessageId": msg.id,
-            }
+            reply = MsgData(
+                text="❌ This chat is not subscribed to that feed",
+                quoted_message_id=msg.id,
+            )
             bot.rpc.send_msg(accid, msg.chat_id, reply)
 
 
 @cli.on(events.NewMessage(command="/list"))
-def _list(bot: Bot, accid: int, event: AttrDict) -> None:
+def _list(bot: Bot, accid: int, event: NewMsgEvent) -> None:
+    bot.rpc.markseen_msgs(accid, [event.msg.id])
     msg = event.msg
     chat = bot.rpc.get_basic_chat_info(accid, msg.chat_id)
     if chat.chat_type == ChatType.SINGLE:
@@ -282,11 +295,11 @@ def _list(bot: Bot, accid: int, event: AttrDict) -> None:
             "❌ You must send that command in the group where you have the subscriptions.\n"
             "You can check the groups you share with me in my profile"
         )
-        reply = {"text": text, "quotedMessageId": msg.id}
+        reply = MsgData(text=text, quoted_message_id=msg.id)
     else:
         with session_scope() as session:
             stmt = select(Fchat).where(Fchat.accid == accid, Fchat.gid == msg.chat_id)
             fchats = session.execute(stmt).scalars()
             text = "\n\n".join(fchat.feed_url for fchat in fchats)
-        reply = {"text": text or "❌ No feed subscriptions in this chat"}
+        reply = MsgData(text=text or "❌ No feed subscriptions in this chat")
     bot.rpc.send_msg(accid, msg.chat_id, reply)
