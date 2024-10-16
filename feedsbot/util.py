@@ -149,11 +149,13 @@ def format_entries(entries: list, filter_: str) -> str:
 def _parse_entry(entry) -> tuple:
     title = entry.get("title") or ""
     pub_date = entry.get("published") or ""
-    desc = entry.get("description") or ""
-    if not desc and entry.get("content"):
+    desc = ""
+    if entry.get("content"):
         for c in entry.get("content"):
             if c.get("type") == "text/html":
                 desc += c["value"]
+    if not desc:
+        desc = entry.get("description") or ""
 
     if title:
         desc_soup = bs4.BeautifulSoup(desc, "html5lib")
