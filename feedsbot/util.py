@@ -96,17 +96,19 @@ def _check_feed(bot: Bot, feed: Feed) -> None:
 
     if d.entries and feed.latest:
         d.entries = get_new_entries(d.entries, tuple(map(int, feed.latest.split())))
-    if not d.entries:
-        return
 
-    full_html = format_entries(d.entries[:100], "")
     with session_scope() as session:
         stmt = select(Fchat).where(Fchat.feed_url == feed.url)
         fchats = session.execute(stmt).scalars().all()
         if not fchats:
             session.delete(feed)
+            bot.logger.debug(f"Removed unused feed {feed.url}")
             return
 
+    if not d.entries:
+        return
+
+    full_html = format_entries(d.entries[:100], "")
     for fchat in fchats:
         if fchat.filter:
             html = format_entries(d.entries[:100], fchat.filter)
