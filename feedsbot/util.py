@@ -259,15 +259,30 @@ def parse_feed(
 
 
 def get_response_text(resp: requests.Response, max_size: int) -> str:
-    content_size = int(resp.headers.get("content-size") or -1)
-    if content_size < max_size:
-        size = 0
-        for chunk in resp.iter_content(chunk_size=102400):
-            size += len(chunk)
-            if size > max_size:
-                return ""
-        return resp.text
-    return ""
+    """
+    Return the response text only if the total payload size does not exceed max_size.
+    If the size is unknown or exceeds the limit, an empty string is returned.
+    """
+    # Try to get the size from the headers
+    content_length = int(resp.headers.get("content-length", -1))
+
+    if content_length > max_size:
+        return ""  # skip reading the body
+
+    # content_length might be -1/unknown or fake so check manually
+    content = bytearray()
+    total = 0
+    for chunk in resp.iter_content(chunk_size=102400):  # 100KB chunks
+        total += len(chunk)
+        if total > max_size:
+            return ""  # limit exceeded, discard
+        content.extend(chunk)
+
+    encoding = resp.encoding or resp.apparent_encoding
+    try:
+        return content.decode(encoding, errors="replace")
+    except (LookupError, TypeError):
+        return content.decode(errors="replace")
 
 
 def get_img_ext(resp: requests.Response) -> str:
