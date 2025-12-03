@@ -278,7 +278,7 @@ def get_response_text(resp: requests.Response, max_size: int) -> str:
             return ""  # limit exceeded, discard
         content.extend(chunk)
 
-    encoding = resp.encoding or resp.apparent_encoding
+    encoding = resp.encoding or "utf-8"
     try:
         return content.decode(encoding, errors="replace")
     except (LookupError, TypeError):
