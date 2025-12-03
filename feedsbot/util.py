@@ -79,6 +79,8 @@ def _check_feed_task(bot: Bot, feed: Feed):
             with session_scope() as session:
                 stmt = select(Fchat.accid, Fchat.gid).where(Fchat.feed_url == feed.url)
                 fchats = session.execute(stmt).all()
+                # this is needed because cascade delete doesn't work below
+                session.execute(delete(Fchat).where(Fchat.feed_url == feed.url))
                 session.execute(delete(Feed).where(Feed.url == feed.url))
             reply = MsgData(
                 text=f"❌ Due to errors, this chat was unsubscribed from feed: {feed.url}"
