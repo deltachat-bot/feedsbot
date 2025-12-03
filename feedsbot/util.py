@@ -244,9 +244,10 @@ def parse_feed(
             modified[4],
             modified[5],
         )
-    with www.get(url, headers=headers) as resp:
+    with www.get(url, headers=headers, stream=True) as resp:
         resp.raise_for_status()
-        dict_ = feedparser.parse(resp.text)
+        text = get_response_text(resp, 1024**2 * 10)  # 10MB
+        dict_ = feedparser.parse(text)
     bozo_exception = dict_.get("bozo_exception", ValueError("Invalid feed"))
     if (
         dict_.get("bozo")
@@ -255,6 +256,18 @@ def parse_feed(
     ):
         raise bozo_exception
     return dict_
+
+
+def get_response_text(resp: requests.Response, max_size: int) -> str:
+    content_size = int(resp.headers.get("content-size") or -1)
+    if content_size < max_size:
+        size = 0
+        for chunk in resp.iter_content(chunk_size=102400):
+            size += len(chunk)
+            if size > max_size:
+                return ""
+        return resp.text
+    return ""
 
 
 def get_img_ext(resp: requests.Response) -> str:
