@@ -37,7 +37,7 @@ cli.add_generic_option("-v", "--version", action="version", version=__version__)
 cli.add_generic_option(
     "--interval",
     type=int,
-    default=60 * 5,
+    default=60 * 20,
     help="how many seconds to sleep before checking the feeds again (default: %(default)s)",
 )
 cli.add_generic_option(
