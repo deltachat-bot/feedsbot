@@ -15,7 +15,7 @@ pip install feedsbot
 Configure the bot:
 
 ```sh
-feedsbot init bot@example.com PASSWORD
+feedsbot init dcaccount:nine.testrun.org
 ```
 
 Start the bot:

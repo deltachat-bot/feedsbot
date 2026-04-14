@@ -188,9 +188,7 @@ def _sub(max_feed_count: int, bot: Bot, accid: int, event: NewMsgEvent) -> None:
                 bot.logger.exception("Invalid feed %s: %s", url, ex)
                 return
         else:
-            stmt = select(func.count()).select_from(  # noqa: func.count is callable
-                Feed
-            )
+            stmt = select(func.count()).select_from(Feed)  # noqa
             if 0 <= max_feed_count <= session.execute(stmt).scalar_one():
                 reply = MsgData(text="❌ Sorry, maximum number of feeds reached")
                 bot.rpc.send_msg(accid, event.msg.chat_id, reply)
